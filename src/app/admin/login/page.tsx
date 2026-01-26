@@ -16,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useAuth } from '@/lib/hooks/useAuth';
+import { useAuth } from '@/lib/context/AuthContext';
 
 // Validation schema
 const loginSchema = z.object({
@@ -59,13 +59,8 @@ export default function AdminLoginPage() {
     }
   }, [searchParams]);
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      const redirect = searchParams.get('redirect') || '/admin/campaigns';
-      router.push(redirect);
-    }
-  }, [isAuthenticated, router, searchParams]);
+  // Don't auto-redirect here to prevent redirect loop
+  // Let the form submission handle the redirect instead
 
   // Form submission handler
   const onSubmit = handleSubmit(async (data) => {
@@ -80,9 +75,9 @@ export default function AdminLoginPage() {
       });
 
       if (success) {
-        // Redirect to intended page or campaigns
+        // Use replace to prevent back button returning to login page
         const redirect = searchParams.get('redirect') || '/admin/campaigns';
-        router.push(redirect);
+        router.replace(redirect);
       } else {
         setError('Invalid email or password');
       }

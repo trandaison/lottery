@@ -1,0 +1,584 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Trash2, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
+import type { CampaignWithPrizes } from '@/types';
+
+// Form schema matching backend validation
+const campaignFormSchema = z
+  .object({
+    title: z.string().min(1, 'Title is required').max(255),
+    slug: z.string().max(255).optional(),
+    description: z.string().optional(),
+    startTime: z.date({ required_error: 'Start time is required' }),
+    endTime: z.date({ required_error: 'End time is required' }),
+    ticketPrice: z.number().int().positive('Ticket price must be positive'),
+    status: z.enum(['active', 'drawing', 'completed', 'canceled']),
+    excludeWinningNumbers: z.boolean(),
+    paymentType: z.enum(['direct', 'transfer']),
+    bankNameOrCode: z.string().optional(),
+    accountNumber: z.string().optional(),
+    accountHolderName: z.string().optional(),
+    sepayGateway: z.string().optional(),
+    prizes: z
+      .array(
+        z.object({
+          title: z.string().min(1, 'Prize title is required').max(255),
+          prizesCount: z.number().int().positive('Prize count must be positive'),
+          matchingDigits: z.number().int().min(1).max(6),
+          prizeValue: z.number().int().positive('Prize value must be positive'),
+        })
+      )
+      .min(1, 'At least one prize is required'),
+  })
+  .refine((data) => data.endTime > data.startTime, {
+    message: 'End time must be after start time',
+    path: ['endTime'],
+  })
+  .refine(
+    (data) => {
+      if (data.paymentType === 'transfer') {
+        return (
+          data.bankNameOrCode &&
+          data.accountNumber &&
+          data.accountHolderName &&
+          data.sepayGateway
+        );
+      }
+      return true;
+    },
+    {
+      message: 'Bank information is required for transfer payment type',
+      path: ['paymentType'],
+    }
+  );
+
+type CampaignFormValues = z.infer<typeof campaignFormSchema>;
+
+interface CampaignFormProps {
+  campaign?: CampaignWithPrizes;
+  onSubmit: (data: CampaignFormValues) => Promise<void>;
+  onCancel?: () => void;
+  isLoading?: boolean;
+  mode: 'create' | 'edit';
+}
+
+export function CampaignForm({
+  campaign,
+  onSubmit,
+  onCancel,
+  isLoading = false,
+  mode,
+}: CampaignFormProps) {
+  const [autoSlug, setAutoSlug] = useState(true);
+
+  const form = useForm<CampaignFormValues>({
+    resolver: zodResolver(campaignFormSchema),
+    defaultValues: campaign
+      ? {
+          ...campaign,
+          startTime: new Date(campaign.startTime),
+          endTime: new Date(campaign.endTime),
+          slug: campaign.slug || '',
+          description: campaign.description || '',
+          prizes: campaign.prizes.map((p) => ({
+            title: p.title,
+            prizesCount: p.prizesCount,
+            matchingDigits: p.matchingDigits,
+            prizeValue: p.prizeValue,
+          })),
+        }
+      : {
+          title: '',
+          slug: '',
+          description: '',
+          startTime: new Date(),
+          endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+          ticketPrice: 10000,
+          status: 'active',
+          excludeWinningNumbers: true,
+          paymentType: 'direct',
+          bankNameOrCode: '',
+          accountNumber: '',
+          accountHolderName: '',
+          sepayGateway: '',
+          prizes: [
+            {
+              title: 'Giải nhất',
+              prizesCount: 1,
+              matchingDigits: 6,
+              prizeValue: 1000000,
+            },
+          ],
+        },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'prizes',
+  });
+
+  const paymentType = form.watch('paymentType');
+  const title = form.watch('title');
+
+  // Auto-generate slug from title
+  useEffect(() => {
+    if (autoSlug && title && mode === 'create') {
+      const slug = title
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      form.setValue('slug', slug);
+    }
+  }, [title, autoSlug, form, mode]);
+
+  const handleSubmit = async (data: CampaignFormValues) => {
+    await onSubmit(data);
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
+        {/* Section 1: Campaign Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle>1. Campaign Information</CardTitle>
+            <CardDescription>Basic information about the campaign</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Title</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter campaign title" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="slug"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Slug (URL)</FormLabel>
+                  <FormControl>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="campaign-slug"
+                        {...field}
+                        disabled={autoSlug && mode === 'create'}
+                      />
+                      {mode === 'create' && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setAutoSlug(!autoSlug)}
+                        >
+                          {autoSlug ? 'Edit' : 'Auto'}
+                        </Button>
+                      )}
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    URL-friendly version of the title. Auto-generated by default.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (Markdown)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Enter campaign description (supports Markdown)"
+                      rows={6}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>You can use Markdown syntax for formatting</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="startTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Date & Time</FormLabel>
+                    <FormControl>
+                      <DateTimePicker
+                        date={field.value}
+                        setDate={(date) => field.onChange(date)}
+                        placeholder="Pick start date and time"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="endTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>End Date & Time</FormLabel>
+                    <FormControl>
+                      <DateTimePicker
+                        date={field.value}
+                        setDate={(date) => field.onChange(date)}
+                        placeholder="Pick end date and time"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="ticketPrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ticket Price (VND)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="10000"
+                        {...field}
+                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="drawing">Drawing</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="canceled">Canceled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Section 2: Prizes Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle>2. Prizes Settings</CardTitle>
+            <CardDescription>Configure prizes and matching rules</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField
+              control={form.control}
+              name="excludeWinningNumbers"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Exclude Winning Numbers</FormLabel>
+                    <FormDescription>
+                      Prevent numbers that have already won from winning again
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <div className="space-y-4">
+              {fields.map((field, index) => (
+                <Card key={field.id}>
+                  <CardContent className="pt-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium">Prize #{index + 1}</h4>
+                        {fields.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => remove(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name={`prizes.${index}.title`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Prize Title</FormLabel>
+                              <FormControl>
+                                <Input placeholder="e.g., Giải nhất" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`prizes.${index}.prizesCount`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Number of Winners</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="1"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`prizes.${index}.matchingDigits`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Matching Digits (1-6)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={6}
+                                  placeholder="6"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`prizes.${index}.prizeValue`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Prize Value (VND)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="1000000"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  append({
+                    title: '',
+                    prizesCount: 1,
+                    matchingDigits: 3,
+                    prizeValue: 100000,
+                  })
+                }
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Prize
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Section 3: Payment Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle>3. Payment Settings</CardTitle>
+            <CardDescription>Configure payment method and bank details</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField
+              control={form.control}
+              name="paymentType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Payment Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select payment type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="direct">Direct (Immediate)</SelectItem>
+                      <SelectItem value="transfer">Bank Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Direct: Tickets created immediately. Transfer: Requires bank payment.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {paymentType === 'transfer' && (
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="bankNameOrCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Bank Name or Code</FormLabel>
+                        <FormControl>
+                          <Input placeholder="VCB, Vietcombank, etc." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="accountNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Account Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="1234567890" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="accountHolderName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Account Holder Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="NGUYEN VAN A" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="sepayGateway"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SePay Gateway URL</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://sepay.vn/..." {...field} />
+                      </FormControl>
+                      <FormDescription>URL provided by SePay for webhook integration</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Form Actions */}
+        <div className="flex justify-end gap-4">
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+              Cancel
+            </Button>
+          )}
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Saving...' : mode === 'create' ? 'Create Campaign' : 'Update Campaign'}
+          </Button>
+        </div>
+      </form>
+    </Form>
+  );
+}
