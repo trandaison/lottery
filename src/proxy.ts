@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { authService } from '@/services/auth.service';
 
 /**
- * Middleware to protect admin routes
+ * Proxy middleware to protect admin routes (Next.js 16+)
  * Verifies JWT and Redis session for /admin routes
+ * 
+ * Note: Renamed from middleware.ts to proxy.ts for Next.js 16 compatibility
  */
-export async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public routes
+  // Allow all public routes (non-admin)
   if (!pathname.startsWith('/admin')) {
     return NextResponse.next();
   }
@@ -33,6 +34,9 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
+    // Import authService dynamically to avoid issues during build/runtime
+    const { authService } = await import('@/services/auth.service');
+    
     // Verify JWT and check Redis session
     const user = await authService.verifyAuth(token);
 
@@ -70,7 +74,7 @@ export async function middleware(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Middleware authentication error:', error);
+    console.error('Proxy middleware authentication error:', error);
 
     // On error, redirect to login
     const loginUrl = new URL('/admin/login', request.url);
@@ -84,16 +88,10 @@ export async function middleware(request: NextRequest) {
 
 /**
  * Configure which paths the middleware runs on
+ * Only run on /admin routes to avoid unnecessary overhead
  */
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico (favicon)
-     * - public files (images, etc.)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/admin/:path*',
   ],
 };

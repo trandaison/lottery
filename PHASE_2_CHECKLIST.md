@@ -3,7 +3,7 @@
 ## Overview
 Implement Redis-backed JWT authentication system for admin users.
 
-**Duration**: 3 days  
+**Duration**: 3 days
 **Status**: ✅ COMPLETE
 
 ---

@@ -22,7 +22,7 @@ describe('AuthService - Integration Tests', () => {
   beforeEach(async () => {
     // Create test user
     const hashedPassword = await authService.hashPassword(testUser.password);
-    
+
     // Check if user already exists
     const existing = await db
       .select()
@@ -194,7 +194,7 @@ describe('AuthService - Unit Tests (without Redis)', () => {
     const hash2 = await authService.hashPassword(password);
 
     expect(hash1).not.toBe(hash2); // Bcrypt uses random salt
-    
+
     // But both should validate
     expect(await authService.comparePassword(password, hash1)).toBe(true);
     expect(await authService.comparePassword(password, hash2)).toBe(true);
@@ -203,11 +203,11 @@ describe('AuthService - Unit Tests (without Redis)', () => {
   it('should create valid JWT structure', () => {
     const tokenBase = authService.generateTokenBase();
     const jwt = authService.generateAccessToken(tokenBase);
-    
+
     // JWT should have 3 parts
     const parts = jwt.split('.');
     expect(parts).toHaveLength(3);
-    
+
     // Should be able to decode
     const decoded = authService.verifyAccessToken(jwt);
     expect(decoded?.sub).toBe(tokenBase);

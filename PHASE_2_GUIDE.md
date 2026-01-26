@@ -231,7 +231,7 @@ function MyComponent() {
   const { user, isLoading, isAuthenticated, login, logout, refresh } = useAuth();
 
   if (isLoading) return <div>Loading...</div>;
-  
+
   if (!isAuthenticated) {
     return <div>Not logged in</div>;
   }
@@ -466,6 +466,6 @@ Phase 2 complete! Ready for:
 
 ---
 
-**Last Updated**: January 26, 2026  
-**Version**: 1.0.0  
+**Last Updated**: January 26, 2026
+**Version**: 1.0.0
 **Status**: ✅ Production Ready
