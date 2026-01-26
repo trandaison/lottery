@@ -6,18 +6,18 @@
 users (id)
   ├─→ tickets (user_id)
   ├─→ orders (user_id)
-  
+
 campaigns (id)
   ├─→ campaign_prizes (campaign_id)
   ├─→ tickets (campaign_id)
   ├─→ orders (campaign_id)
-  
+
 campaign_prizes (id)
   └─→ winning_numbers (campaign_prize_id)
-  
+
 orders (id)
   └─→ order_tickets (order_id)
-  
+
 tickets (id)
   └─→ order_tickets (ticket_id)
 ```
@@ -119,7 +119,7 @@ if (!existing) {
       status: 'active',
     })
     .returning();
-  
+
   return newUser;
 }
 
@@ -214,7 +214,7 @@ await db
 ```typescript
 const [updated] = await db
   .update(campaigns)
-  .set({ 
+  .set({
     status: 'drawing',
     updatedAt: new Date(),
   })
@@ -226,7 +226,7 @@ const [updated] = await db
 ```typescript
 await db
   .update(tickets)
-  .set({ 
+  .set({
     isWinning: true,
     updatedAt: new Date(),
   })
@@ -262,7 +262,7 @@ await db
 // Unmark tickets
 await db
   .update(tickets)
-  .set({ 
+  .set({
     isWinning: false,
     updatedAt: new Date(),
   })
@@ -280,18 +280,18 @@ await db.transaction(async (tx) => {
     .insert(orders)
     .values({ ... })
     .returning();
-  
+
   // Create tickets
   const createdTickets = await tx
     .insert(tickets)
     .values([...])
     .returning();
-  
+
   // Link tickets to order
   await tx
     .insert(orderTickets)
     .values([...]);
-  
+
   // If any step fails, entire transaction rolls back
 });
 ```
@@ -504,6 +504,6 @@ Common PostgreSQL error codes:
 
 ---
 
-**Quick Reference Version:** 1.0  
-**Last Updated:** Phase 1 Complete  
+**Quick Reference Version:** 1.0
+**Last Updated:** Phase 1 Complete
 **Next:** Phase 2 - Authentication System

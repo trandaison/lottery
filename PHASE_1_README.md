@@ -7,7 +7,7 @@ Phase 1 successfully implemented the database foundation for the Lottery system 
 
 ### Database Schema (7 Tables)
 1. **users** - User accounts with role-based access
-2. **campaigns** - Lottery campaigns with payment configuration  
+2. **campaigns** - Lottery campaigns with payment configuration
 3. **campaign_prizes** - Prize tiers for each campaign
 4. **tickets** - Individual lottery tickets
 5. **orders** - Purchase orders with payment tracking
@@ -57,7 +57,7 @@ Matching done from **RIGHT to LEFT** (last N digits).
 
 ### Users Table
 ```sql
-id (BIGSERIAL) | uuid | email | name | password_digest | 
+id (BIGSERIAL) | uuid | email | name | password_digest |
 phone | status | role | created_at | updated_at
 ```
 
@@ -83,7 +83,7 @@ canceled_at | created_at | updated_at
 
 ### Campaign Prizes Table
 ```sql
-id | uuid | campaign_id (FK) | title | prizes_count | 
+id | uuid | campaign_id (FK) | title | prizes_count |
 matching_digits | prize_value | created_at | updated_at
 ```
 
@@ -91,7 +91,7 @@ matching_digits | prize_value | created_at | updated_at
 
 ### Tickets Table
 ```sql
-id | uuid | campaign_id (FK) | user_id (FK) | ticket_number | 
+id | uuid | campaign_id (FK) | user_id (FK) | ticket_number |
 is_winning | created_at | updated_at
 ```
 
@@ -103,7 +103,7 @@ is_winning | created_at | updated_at
 ```sql
 id | uuid | campaign_id (FK) | user_id (FK) | tickets_count |
 total_amount | payment_reference_id | expires_at | payment_type |
-payment_status | error_message | sepay_transaction_id | 
+payment_status | error_message | sepay_transaction_id |
 received_at | created_at | updated_at
 ```
 

@@ -12,8 +12,8 @@ import { users, campaigns, campaignPrizes } from '../src/db/schema';
 
 // Create database client directly without env validation
 const client = postgres(process.env.DATABASE_URL!);
-const db = drizzle(client, { 
-  schema: { users, campaigns, campaignPrizes } 
+const db = drizzle(client, {
+  schema: { users, campaigns, campaignPrizes }
 });
 
 async function seed() {

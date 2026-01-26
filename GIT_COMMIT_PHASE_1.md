@@ -202,7 +202,7 @@ modify mode scripts/seed.ts
 
 ---
 
-**Commit Type:** Feature (feat)  
-**Scope:** phase-1  
-**Breaking Changes:** No  
+**Commit Type:** Feature (feat)
+**Scope:** phase-1
+**Breaking Changes:** No
 **Related Issues:** #phase-1

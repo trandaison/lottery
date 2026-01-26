@@ -11,12 +11,12 @@ async function verify() {
 
     // List all tables
     const tables = await client`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
       ORDER BY table_name
     `;
-    
+
     console.log('📋 Tables:');
     tables.forEach((table) => {
       console.log(`  ✓ ${table.table_name}`);
@@ -25,9 +25,9 @@ async function verify() {
     // Check admin user
     console.log('\n👤 Admin User:');
     const [admin] = await client`
-      SELECT id, uuid, email, name, role, status, created_at 
-      FROM users 
-      WHERE role = 'admin' 
+      SELECT id, uuid, email, name, role, status, created_at
+      FROM users
+      WHERE role = 'admin'
       LIMIT 1
     `;
     console.log(`  ID: ${admin.id} (BIGSERIAL)`);
@@ -41,7 +41,7 @@ async function verify() {
     console.log('\n🎯 Sample Campaign:');
     const [campaign] = await client`
       SELECT id, uuid, title, slug, status, ticket_price, start_time, end_time
-      FROM campaigns 
+      FROM campaigns
       LIMIT 1
     `;
     console.log(`  ID: ${campaign.id} (BIGSERIAL)`);
@@ -66,9 +66,9 @@ async function verify() {
     // Verify indexes
     console.log('\n📊 Indexes:');
     const indexes = await client`
-      SELECT tablename, indexname 
-      FROM pg_indexes 
-      WHERE schemaname = 'public' 
+      SELECT tablename, indexname
+      FROM pg_indexes
+      WHERE schemaname = 'public'
       AND indexname LIKE 'idx_%'
       ORDER BY tablename, indexname
     `;
@@ -77,7 +77,7 @@ async function verify() {
       acc[idx.tablename].push(idx.indexname);
       return acc;
     }, {} as Record<string, string[]>);
-    
+
     Object.entries(groupedIndexes).forEach(([table, idxList]) => {
       console.log(`  ${table}: ${idxList.length} indexes`);
       idxList.forEach(idx => console.log(`    - ${idx}`));

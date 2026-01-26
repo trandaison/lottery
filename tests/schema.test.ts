@@ -76,7 +76,7 @@ describe('Database Schema - Phase 1', () => {
         .where(eq(schema.campaignPrizes.campaignId, campaign.id));
 
       expect(prizes).toHaveLength(4);
-      
+
       // Verify prize structure
       const firstPrize = prizes.find((p) => p.matchingDigits === 6);
       expect(firstPrize).toBeDefined();

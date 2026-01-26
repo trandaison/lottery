@@ -33,7 +33,7 @@ Implemented a comprehensive 7-table schema following the BIGSERIAL + UUID patter
 
 **Enums for Type Safety:**
 - `user_status`: active, inactive
-- `user_role`: admin, user  
+- `user_role`: admin, user
 - `campaign_status`: active, drawing, completed, canceled
 - `payment_type`: direct, transfer
 - `payment_status`: pending, success, failed

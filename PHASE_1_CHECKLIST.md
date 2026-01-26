@@ -9,31 +9,31 @@
   - Fields: id (BIGSERIAL), uuid, name, email, password_digest, phone, status, role
   - Enums: user_status (active/inactive), user_role (admin/user)
   - Indexes: email, role
-  
+
 - [x] Created `src/db/schema/campaigns.ts` with BIGSERIAL ID + UUID
   - Fields: id, uuid, title, slug, description, start_time, end_time, ticket_price, payment_type, bank details, status, exclude_winning_numbers
   - Enums: campaign_status (active/drawing/completed/canceled), payment_type (direct/transfer)
   - Indexes: slug, status, start_time
-  
+
 - [x] Created `src/db/schema/campaign-prizes.ts` with BIGSERIAL ID + UUID
   - Fields: id, uuid, campaign_id (FK), title, prizes_count, matching_digits, prize_value
   - Indexes: campaign_id, matching_digits
-  
+
 - [x] Created `src/db/schema/tickets.ts` with BIGSERIAL ID + UUID
   - Fields: id, uuid, campaign_id (FK), user_id (FK), ticket_number, is_winning
   - Unique constraint: (campaign_id, ticket_number)
   - Indexes: campaign_id, user_id, ticket_number, is_winning
-  
+
 - [x] Created `src/db/schema/orders.ts` with BIGSERIAL ID + UUID
   - Fields: id, uuid, campaign_id (FK), user_id (FK), tickets_count, total_amount, payment_reference_id, expires_at, payment_type, payment_status, error_message, sepay_transaction_id, received_at
   - Enum: payment_status (pending/success/failed)
   - Indexes: campaign_id, user_id, payment_reference_id, payment_status
-  
+
 - [x] Created `src/db/schema/order-tickets.ts` with BIGSERIAL ID
   - Fields: id, order_id (FK → orders.id), ticket_id (FK → tickets.id)
   - Unique constraint: (order_id, ticket_id)
   - Indexes: order_id, ticket_id
-  
+
 - [x] Created `src/db/schema/winning-numbers.ts` with BIGSERIAL ID + UUID
   - Fields: id, uuid, campaign_prize_id (FK), number (WITHOUT left-padding)
   - Indexes: campaign_prize_id
@@ -59,14 +59,14 @@
   - Role: admin
   - Status: active
   - ID: 1 (BIGSERIAL), UUID: auto-generated
-  
+
 - [x] Seeded sample campaign for testing:
   - Title: Sample Campaign
   - Slug: sample-campaign
   - Status: active
   - Ticket Price: 10,000 VND
   - ID: 1 (BIGSERIAL), UUID: auto-generated
-  
+
 - [x] Seeded 4 sample prizes:
   - First Prize: 1x, 6 digits, 1,000,000 VND
   - Second Prize: 2x, 5 digits, 500,000 VND
@@ -125,7 +125,7 @@
 
 ## Key Implementation Notes
 
-1. **BIGSERIAL + UUID Pattern**: 
+1. **BIGSERIAL + UUID Pattern**:
    - All tables use `id: bigserial` as PRIMARY KEY
    - All tables have `uuid` column for external references
    - Foreign keys always reference `id` (BIGINT), never `uuid`
