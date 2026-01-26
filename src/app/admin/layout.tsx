@@ -38,9 +38,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex items-start min-h-screen">
       {/* Sidebar */}
-      <aside className="w-64 border-r bg-gray-50/50">
+      <aside className="w-64 border-r bg-gray-50/50 flex-shrink-0 sticky top-0 h-screen">
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center border-b px-6">
@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-4">
+          <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
             <Link href="/admin/campaigns">
               <Button
                 variant={pathname.startsWith('/admin/campaigns') ? 'secondary' : 'ghost'}
@@ -75,8 +75,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="container mx-auto py-8 px-6">{children}</div>
+      <main className="flex-1">
+        <div className="mx-auto max-w-7xl py-8 px-6">{children}</div>
       </main>
     </div>
   );

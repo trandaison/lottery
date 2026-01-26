@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Edit, Trash2, PlayCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, PlayCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -57,8 +57,6 @@ export default function CampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState<CampaignWithPrizes | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
   const fetchCampaigns = async () => {
@@ -92,34 +90,6 @@ export default function CampaignsPage() {
   useEffect(() => {
     fetchCampaigns();
   }, [statusFilter, searchTerm]);
-
-  const handleCancelCampaign = async () => {
-    if (!selectedCampaign) return;
-
-    setActionLoading(true);
-    try {
-      const response = await fetch(`/api/v1/admin/campaigns/${selectedCampaign.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'canceled' }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success('Campaign canceled successfully');
-        fetchCampaigns();
-        setCancelDialogOpen(false);
-      } else {
-        toast.error(result.error?.message || 'Failed to cancel campaign');
-      }
-    } catch (error) {
-      console.error('Error canceling campaign:', error);
-      toast.error('Failed to cancel campaign');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   const handleDeleteCampaign = async (id: number) => {
     if (!confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) {
@@ -243,19 +213,6 @@ export default function CampaignsPage() {
                           Edit
                         </Link>
                       </Button>
-                      {campaign.status === 'active' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedCampaign(campaign);
-                            setCancelDialogOpen(true);
-                          }}
-                        >
-                          <XCircle className="mr-2 h-4 w-4" />
-                          Cancel
-                        </Button>
-                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -275,30 +232,6 @@ export default function CampaignsPage() {
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div>Showing {campaigns.length} of {total} campaigns</div>
       </div>
-
-      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel Campaign</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to cancel "{selectedCampaign?.title}"? This action cannot be
-              undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setCancelDialogOpen(false)}
-              disabled={actionLoading}
-            >
-              No, keep it
-            </Button>
-            <Button onClick={handleCancelCampaign} disabled={actionLoading}>
-              {actionLoading ? 'Canceling...' : 'Yes, cancel it'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

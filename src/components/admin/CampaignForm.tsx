@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, Info, Gift, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Form,
   FormControl,
@@ -118,7 +118,7 @@ export function CampaignForm({
           slug: '',
           description: '',
           startTime: new Date(),
-          endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+          endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           ticketPrice: 10000,
           status: 'active',
           excludeWinningNumbers: true,
@@ -169,14 +169,15 @@ export function CampaignForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-12">
         {/* Section 1: Campaign Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle>1. Campaign Information</CardTitle>
-            <CardDescription>Basic information about the campaign</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 border-l-4 border-blue-500 pl-4">
+            <Info className="h-5 w-5 text-blue-500" />
+            <h2 className="text-xl font-semibold">Campaign Information</h2>
+          </div>
+          
+          <div className="space-y-4">
             <FormField
               control={form.control}
               name="title"
@@ -242,12 +243,12 @@ export function CampaignForm({
               )}
             />
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
               <FormField
                 control={form.control}
                 name="startTime"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="flex flex-col">
                     <FormLabel>Start Date & Time</FormLabel>
                     <FormControl>
                       <DateTimePicker
@@ -265,7 +266,7 @@ export function CampaignForm({
                 control={form.control}
                 name="endTime"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="flex flex-col">
                     <FormLabel>End Date & Time</FormLabel>
                     <FormControl>
                       <DateTimePicker
@@ -324,16 +325,17 @@ export function CampaignForm({
                 )}
               />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Section 2: Prizes Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>2. Prizes Settings</CardTitle>
-            <CardDescription>Configure prizes and matching rules</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 border-l-4 border-purple-500 pl-4">
+            <Gift className="h-5 w-5 text-purple-500" />
+            <h2 className="text-xl font-semibold">Prizes Settings</h2>
+          </div>
+
+          <div className="space-y-4">
             <FormField
               control={form.control}
               name="excludeWinningNumbers"
@@ -355,7 +357,7 @@ export function CampaignForm({
             <div className="space-y-4">
               {fields.map((field, index) => (
                 <Card key={field.id}>
-                  <CardContent className="pt-6">
+                  <CardContent className="p-6">
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium">Prize #{index + 1}</h4>
@@ -467,16 +469,17 @@ export function CampaignForm({
                 Add Prize
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Section 3: Payment Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>3. Payment Settings</CardTitle>
-            <CardDescription>Configure payment method and bank details</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 border-l-4 border-green-500 pl-4">
+            <CreditCard className="h-5 w-5 text-green-500" />
+            <h2 className="text-xl font-semibold">Payment Settings</h2>
+          </div>
+
+          <div className="space-y-4">
             <FormField
               control={form.control}
               name="paymentType"
@@ -564,11 +567,11 @@ export function CampaignForm({
                 />
               </>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Form Actions */}
-        <div className="flex justify-end gap-4">
+        <div className="flex justify-end gap-4 pt-6 border-t">
           {onCancel && (
             <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
               Cancel
