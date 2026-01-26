@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Edit, Trash2, PlayCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, PlayCircle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -179,7 +179,17 @@ export default function CampaignsPage() {
             <TableBody>
               {campaigns.map((campaign) => (
                 <TableRow key={campaign.id}>
-                  <TableCell className="font-medium">{campaign.title}</TableCell>
+                  <TableCell className="font-medium">
+                    <a
+                      href={`/campaigns/${campaign.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group inline-flex items-center gap-1 hover:text-blue-600 transition-colors"
+                    >
+                      <span>{campaign.title}</span>
+                      <ExternalLink className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </a>
+                  </TableCell>
                   <TableCell>
                     <Badge className={statusColors[campaign.status]}>
                       {statusLabels[campaign.status]}

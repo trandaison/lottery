@@ -47,7 +47,7 @@ export class CampaignService {
    * Create a new campaign with prizes
    */
   async create(
-    data: Omit<NewCampaign, 'uuid' | 'createdAt' | 'updatedAt'>,
+    data: Omit<NewCampaign, 'uuid' | 'createdAt' | 'updatedAt' | 'slug'> & { slug?: string },
     prizes: Omit<NewCampaignPrize, 'uuid' | 'campaignId' | 'createdAt' | 'updatedAt'>[]
   ): Promise<CampaignWithPrizes> {
     // Generate slug if not provided
