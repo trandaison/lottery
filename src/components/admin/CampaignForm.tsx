@@ -35,8 +35,8 @@ const campaignFormSchema = z
     title: z.string().min(1, 'Title is required').max(255),
     slug: z.string().max(255).optional(),
     description: z.string().optional(),
-    startTime: z.date({ required_error: 'Start time is required' }),
-    endTime: z.date({ required_error: 'End time is required' }),
+    startTime: z.date({ message: 'Start time is required' }),
+    endTime: z.date({ message: 'End time is required' }),
     ticketPrice: z.number().int().positive('Ticket price must be positive'),
     status: z.enum(['active', 'drawing', 'completed', 'canceled']),
     excludeWinningNumbers: z.boolean(),
@@ -101,11 +101,19 @@ export function CampaignForm({
     resolver: zodResolver(campaignFormSchema),
     defaultValues: campaign
       ? {
-          ...campaign,
-          startTime: new Date(campaign.startTime),
-          endTime: new Date(campaign.endTime),
+          title: campaign.title,
           slug: campaign.slug || '',
           description: campaign.description || '',
+          startTime: new Date(campaign.startTime),
+          endTime: new Date(campaign.endTime),
+          ticketPrice: campaign.ticketPrice,
+          status: campaign.status,
+          excludeWinningNumbers: campaign.excludeWinningNumbers,
+          paymentType: campaign.paymentType,
+          bankNameOrCode: campaign.bankNameOrCode || '',
+          accountNumber: campaign.accountNumber || '',
+          accountHolderName: campaign.accountHolderName || '',
+          sepayGateway: campaign.sepayGateway || '',
           prizes: campaign.prizes.map((p) => ({
             title: p.title,
             prizesCount: p.prizesCount,
@@ -120,9 +128,9 @@ export function CampaignForm({
           startTime: new Date(),
           endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           ticketPrice: 10000,
-          status: 'active',
+          status: 'active' as const,
           excludeWinningNumbers: true,
-          paymentType: 'direct',
+          paymentType: 'direct' as const,
           bankNameOrCode: '',
           accountNumber: '',
           accountHolderName: '',
@@ -164,7 +172,13 @@ export function CampaignForm({
   }, [title, autoSlug, form, mode]);
 
   const handleSubmit = async (data: CampaignFormValues) => {
-    await onSubmit(data);
+    console.log('Form submitted with data:', data);
+    console.log('Form validation errors:', form.formState.errors);
+    try {
+      await onSubmit(data);
+    } catch (error) {
+      console.error('Form submission error:', error);
+    }
   };
 
   return (
@@ -176,7 +190,7 @@ export function CampaignForm({
             <Info className="h-5 w-5 text-blue-500" />
             <h2 className="text-xl font-semibold">Campaign Information</h2>
           </div>
-          
+
           <div className="space-y-4">
             <FormField
               control={form.control}
@@ -571,7 +585,7 @@ export function CampaignForm({
         </div>
 
         {/* Form Actions */}
-        <div className="flex justify-end gap-4 pt-6 border-t">
+        <div className="flex justify-end gap-4 pt-6 border-t sticky bottom-0 bg-white -mx-6 -mb-8 px-6 pb-8">
           {onCancel && (
             <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
               Cancel

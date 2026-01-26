@@ -42,18 +42,24 @@ export default function EditCampaignPage({ params }: PageProps) {
   }, [resolvedParams.id, router]);
 
   const handleSubmit = async (data: any) => {
+    console.log('Edit page handleSubmit called with:', data);
     try {
+      const payload = {
+        ...data,
+        startTime: data.startTime.toISOString(),
+        endTime: data.endTime.toISOString(),
+      };
+      console.log('Sending PUT request with payload:', payload);
+      
       const response = await fetch(`/api/v1/admin/campaigns/${resolvedParams.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          startTime: data.startTime.toISOString(),
-          endTime: data.endTime.toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
 
+      console.log('Response status:', response.status);
       const result = await response.json();
+      console.log('Response result:', result);
 
       if (result.success) {
         toast.success('Campaign updated successfully');
