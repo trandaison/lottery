@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 /**
  * Proxy middleware to protect admin routes (Next.js 16+)
  * Verifies JWT and Redis session for /admin routes
- * 
+ *
  * Note: Renamed from middleware.ts to proxy.ts for Next.js 16 compatibility
  */
 export default async function proxy(request: NextRequest) {
@@ -36,7 +36,7 @@ export default async function proxy(request: NextRequest) {
   try {
     // Import authService dynamically to avoid issues during build/runtime
     const { authService } = await import('@/services/auth.service');
-    
+
     // Verify JWT and check Redis session
     const user = await authService.verifyAuth(token);
 

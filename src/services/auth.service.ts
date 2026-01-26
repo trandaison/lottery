@@ -191,7 +191,7 @@ export class AuthService {
     // Verify password
     const isValidPassword = await this.comparePassword(
       password,
-      user.passwordDigest
+      user.passwordDigest || ''
     );
     if (!isValidPassword) {
       return null;

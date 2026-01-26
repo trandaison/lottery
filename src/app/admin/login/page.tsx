@@ -22,7 +22,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
-  rememberMe: z.boolean().optional().default(false),
+  rememberMe: z.boolean(),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -35,13 +35,7 @@ export default function AdminLoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // React Hook Form with Zod validation
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    setValue,
-    watch,
-  } = useForm<LoginFormData>({
+  const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: '',
@@ -50,6 +44,7 @@ export default function AdminLoginPage() {
     },
   });
 
+  const { register, handleSubmit, formState: { errors }, setValue, watch } = form;
   const rememberMe = watch('rememberMe');
 
   // Handle error from URL params
@@ -73,7 +68,7 @@ export default function AdminLoginPage() {
   }, [isAuthenticated, router, searchParams]);
 
   // Form submission handler
-  const onSubmit = async (data: LoginFormData) => {
+  const onSubmit = handleSubmit(async (data) => {
     setIsSubmitting(true);
     setError('');
 
@@ -97,7 +92,7 @@ export default function AdminLoginPage() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  });
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -111,14 +106,14 @@ export default function AdminLoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-4">
             {/* Email Field */}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@company.com"
+                placeholder="Enter your email"
                 {...register('email')}
                 disabled={isSubmitting}
                 className={errors.email ? 'border-red-500' : ''}
@@ -160,7 +155,7 @@ export default function AdminLoginPage() {
                 htmlFor="rememberMe"
                 className="text-sm font-normal cursor-pointer"
               >
-                Remember me for 7 days
+                Remember me
               </Label>
             </div>
 
@@ -181,17 +176,6 @@ export default function AdminLoginPage() {
               {isSubmitting ? 'Logging in...' : 'Login'}
             </Button>
           </form>
-
-          {/* Dev Note */}
-          <div className="mt-6 text-center">
-            <p className="text-xs text-gray-500">
-              Development credentials:
-              <br />
-              Email: admin@company.com
-              <br />
-              Password: password123
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>

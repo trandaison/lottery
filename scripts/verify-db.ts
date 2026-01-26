@@ -80,7 +80,7 @@ async function verify() {
 
     Object.entries(groupedIndexes).forEach(([table, idxList]) => {
       console.log(`  ${table}: ${idxList.length} indexes`);
-      idxList.forEach(idx => console.log(`    - ${idx}`));
+      idxList.forEach((idx: string) => console.log(`    - ${idx}`));
     });
 
     console.log('\n✅ Database verification complete!\n');
