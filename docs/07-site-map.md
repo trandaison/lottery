@@ -230,8 +230,7 @@ This document outlines the complete site structure for the Lottery system, inclu
     - If Transfer selected:
       - Bank Name or Code
       - Account Number
-      - Account Holder Name
-      - SePay Gateway URL
+      - SePay Webhook API Key (read-only, auto-generated JWT with campaign UUID as subject)
   
   - **Prizes Section** (dynamic array):
     - Add Prize button (adds new row)

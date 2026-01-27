@@ -58,8 +58,6 @@ Stores lottery campaign information.
 | payment_type | ENUM('direct', 'transfer') | NOT NULL | Payment method |
 | bank_name_or_code | VARCHAR(100) | NULLABLE | Bank name or code for QR |
 | account_number | VARCHAR(50) | NULLABLE | Bank account number |
-| account_holder_name | VARCHAR(255) | NULLABLE | Account holder name |
-| sepay_gateway | VARCHAR(255) | NULLABLE | SePay gateway URL |
 | status | ENUM('active', 'drawing', 'completed', 'canceled') | NOT NULL, DEFAULT 'active' | Campaign status |
 | exclude_winning_numbers | BOOLEAN | NOT NULL, DEFAULT true | Exclude winning tickets from subsequent draws |
 | canceled_at | TIMESTAMP | NULLABLE | Time when campaign was canceled |
@@ -75,11 +73,12 @@ Stores lottery campaign information.
 **Constraints**:
 - CHECK: `end_time > start_time`
 - CHECK: `ticket_price > 0`
-- CHECK: If `payment_type = 'transfer'`, then `bank_name_or_code`, `account_number`, `account_holder_name`, `sepay_gateway` must be NOT NULL
+- CHECK: If `payment_type = 'transfer'`, then `bank_name_or_code` and `account_number` must be NOT NULL
 
 **Notes**:
 - slug is auto-generated from title but can be edited
 - Bank info only required if payment_type = 'transfer'
+- Removed `account_holder_name` and `sepay_gateway` fields (Phase 4.1 update)
 - Campaign status flow:
   - `active`: Default after creation, can purchase tickets
   - `drawing`: Admin started drawing prizes (popup confirm)
@@ -175,6 +174,7 @@ Stores purchase orders (created immediately when user clicks "Purchase").
 | error_message | TEXT | NULLABLE | Error message if payment failed |
 | sepay_transaction_id | VARCHAR(255) | NULLABLE | SePay transaction ID from webhook |
 | received_at | TIMESTAMP | NULLABLE | Time payment was received |
+| transaction_date | TIMESTAMP | NULLABLE | Transaction date from SePay webhook |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Record creation time |
 | updated_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Last update time |
 
@@ -192,9 +192,12 @@ Stores purchase orders (created immediately when user clicks "Purchase").
 - CHECK: `expires_at > created_at`
 
 **Notes**:
-- payment_reference_id format: `ORD-{timestamp}-{random}` (e.g., "ORD-20260126123045-ABC123")
+- payment_reference_id format: `/^LTR\d{6}$/` (e.g., "LTR000001", "LTR102969")
+- Format changed in Phase 4.1 from `ORD-{timestamp}-{random}` to `LTR{6-digit-counter}`
+- Counter-based generation: Find highest number, increment by 1
 - expires_at = created_at + 10 minutes
 - Order created before payment, tickets created after payment success
+- transaction_date stores the transaction datetime from SePay webhook (Phase 4.1)
 
 ---
 

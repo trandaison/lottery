@@ -104,8 +104,7 @@
    - If transfer selected:
      - Bank name or code
      - Account number
-     - Account holder name
-     - SePay gateway URL
+     - SePay Webhook API Key (read-only, auto-generated JWT)
    - Exclude winning numbers (checkbox, default: true)
 
 4. Admin fills in all required information
@@ -250,13 +249,13 @@
    - If not exists: Create new user
    - If exists: Use existing user
 9. System creates order with payment_status = "pending"
-10. System generates payment_reference_id
+10. System generates payment_reference_id in format: `/^LTR\d{6}$/` (e.g., "LTR000001")
 11. System sets order.expires_at = now + 10 minutes (for transfer type only)
 12. If payment_type = "direct":
     - System immediately updates order.payment_status = "success"
     - Go to step 15
 13. If payment_type = "transfer":
-    - System generates VietQR code with payment_reference_id
+    - System generates QR code URL: `https://qr.sepay.vn/img?acc={accountNumber}&bank={bankNameOrCode}&amount={totalAmount}&des={paymentReferenceId}`
     - System displays payment page with QR code and bank info
     - System shows countdown timer (10 minutes)
     - System starts polling order status every 3 seconds
@@ -307,33 +306,64 @@
 - Guest has transferred money
 
 **Main Flow**:
-1. SePay sends webhook to `/api/webhooks/sepay`
-2. System validates webhook signature
-3. System extracts payment_reference_id
-4. System finds matching order
-5. If payment successful:
-   - System updates order.payment_status = "success"
-   - System saves order.sepay_transaction_id
-   - System saves order.received_at = webhook.timestamp
-   - System creates tickets in tickets table
-   - System triggers email job
-6. If payment failed:
-   - System updates order.payment_status = "failed"
-   - System saves order.error_message
-7. System responds 200 OK to webhook
+1. SePay sends webhook to `/api/webhooks/sepay` with header: `Authorization: Apikey {JWT_TOKEN}`
+2. System extracts JWT from Authorization header
+3. System verifies JWT using `SEPAY_WEBHOOK_JWT_SECRET` (skip expiration check)
+4. System decodes JWT to get campaign UUID from `sub` claim
+5. System finds campaign by UUID (any status acceptable)
+6. If campaign not found → Respond 203, stop processing
+7. System extracts webhook payload:
+   ```json
+   {
+     "gateway": "Vietcombank",
+     "transactionDate": "2026-01-27 08:45:29",
+     "accountNumber": "0706213188",
+     "subAccount": null,
+     "code": "LTR000001",
+     "content": "LTR000001",
+     "transferType": "in",
+     "description": null,
+     "transferAmount": 10000,
+     "referenceCode": "510787.270126.084529",
+     "accumulated": 10000,
+     "id": 241439
+   }
+   ```
+8. System finds order by `code` field (payment_reference_id)
+9. System reconciles transaction:
+   - Check `transferAmount` === `order.totalAmount`
+   - Check `accountNumber` === `order.campaign.accountNumber`
+10. If reconciliation fails:
+    - System updates order.payment_status = "failed"
+    - System saves order.error_message = stringify({ ...payload, reconciliationResult: "description of mismatch" })
+    - Respond 203
+11. If order.payment_status = "success" already:
+    - Respond 208 (idempotency - already processed)
+12. If reconciliation succeeds and order.payment_status = "pending":
+    - System updates order.payment_status = "success"
+    - System saves order.sepay_transaction_id = `referenceCode`
+    - System saves order.received_at = new Date()
+    - System saves order.transaction_date = `transactionDate`
+    - System creates tickets in tickets table
+    - System triggers email job
+13. System responds 200 OK to webhook
 
-**Postconditions**: Order payment status updated
+**Postconditions**: Order payment status updated, tickets created
 
 **Alternative Flows**:
-- **2a. Invalid signature**: Respond 401, log security event
-- **4a. Order not found**: Respond 404, log warning
-- **4b. Order already processed**: Respond 200, skip processing (idempotency)
-- **4c. Order expired**: Update status to "failed", error_message = "Timeout"
+- **2a. Invalid JWT**: Respond 203, log security event
+- **5a. Campaign not found**: Respond 203, log warning
+- **8a. Order not found**: Respond 203, log warning
+- **9a. Reconciliation fails**: Update order status to "failed", respond 203
+- **11a. Order already processed**: Respond 208 (idempotency)
 
 **Business Rules**:
 - Webhook must be idempotent
+- JWT authentication verifies webhook is from authorized SePay configuration
+- Campaign UUID in JWT subject ensures webhook is for correct campaign
+- Reconciliation ensures payment amount and account match expectations
 - Process within 30 seconds
-- Retry if ticket creation fails
+- Retry ticket creation if fails
 
 ---
 

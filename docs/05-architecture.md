@@ -281,12 +281,19 @@ class DrawService {
 #### PaymentService
 ```typescript
 class PaymentService {
-  async generateQRCode(campaignId: number, amount: number, referenceId: string): Promise<string>
-  async verifyWebhook(signature: string, payload: any): Promise<boolean>
+  async generateQRCodeURL(campaignId: number, amount: number, referenceId: string): Promise<string>
+  async verifyWebhookJWT(jwt: string): Promise<{ campaignUuid: string } | null>
   async processWebhook(data: SepayWebhookData): Promise<void>
   async generatePaymentReferenceId(): Promise<string>
+  async reconcileTransaction(order: Order, webhookData: SepayWebhookData): Promise<{ success: boolean; error?: string }>
 }
 ```
+
+**Note**:
+- `generateQRCodeURL` returns URL format: `https://qr.sepay.vn/img?acc={accountNumber}&bank={bankNameOrCode}&amount={amount}&des={referenceId}`
+- `verifyWebhookJWT` verifies JWT signature using SEPAY_WEBHOOK_JWT_SECRET and extracts campaign UUID from subject
+- `reconcileTransaction` validates transferAmount and accountNumber match order expectations
+- `generatePaymentReferenceId` creates counter-based ID in format `/^LTR\d{6}$/`
 
 #### EmailService
 ```typescript
@@ -394,10 +401,11 @@ export const tickets = pgTable('tickets', {
 │ PaymentService         │                                    
 └───┬────────────────────┘                                    
     │                                                          
-    │ 7. Generate VietQR code                                 
+    │ 7. Generate QR URL                                 
+    │    https://qr.sepay.vn/img?acc={accountNumber}&bank={bankNameOrCode}&amount={amount}&des={paymentReferenceId}
     │                                                          
 ┌───▼────────────────────┐                                    
-│ Response: QR + timer   │                                    
+│ Response: QR URL + timer │                                    
 └───┬────────────────────┘                                    
     │                                                          
     │ 8. Display payment page & start polling                 
@@ -413,24 +421,27 @@ export const tickets = pgTable('tickets', {
 └───┬────────────────────┘                                    
     │                                                          
     │ 9. POST /api/webhooks/sepay                             
-    │    { referenceId, transactionId, status }               
+    │    Header: Authorization: Apikey {JWT}
+    │    Body: { code, referenceCode, transferAmount, accountNumber, transactionDate, ... }               
     │                                                          
 ┌───▼────────────────────┐                                    
 │ Webhook Handler        │                                    
 └───┬────────────────────┘                                    
     │                                                          
-    │ 10. Verify signature                                    
-    │ 11. Update order status → success                       
-    │ 12. Generate unique ticket numbers (random 6-digits)    
-    │ 13. Create tickets in DB                                
-    │ 14. Create order_tickets (ticket_id FK)                 
+    │ 10. Verify JWT (campaign UUID from subject)
+    │ 11. Reconcile transaction (amount & account)
+    │ 12. Update order status → success                       
+    │ 13. Generate unique ticket numbers (random 6-digits)    
+    │ 14. Create tickets in DB                                
+    │ 15. Create order_tickets (ticket_id FK)
+    │ 16. Save transaction_date from webhook payload                 
     │                                                          
 ┌───▼────────────────────┐                                    
 │ EmailService           │                                    
 └───┬────────────────────┘                                    
     │                                                          
-    │ 15. Generate ticket images                              
-    │ 16. Send email with attachments                         
+    │ 17. Generate ticket images                              
+    │ 18. Send email with attachments                         
     │                                                          
 ┌───▼────────────────────┐                                    
 │ SendGrid → Gmail       │                                    
@@ -441,6 +452,9 @@ export const tickets = pgTable('tickets', {
 - Ticket numbers generated AFTER payment success (not before)
 - Client polls `/api/orders/:referenceId` every 3 seconds
 - order_tickets stores ticket_id FK (not ticket_number)
+- Webhook uses JWT authentication with campaign UUID in subject
+- Reconciliation checks transferAmount and accountNumber
+- transaction_date stored from webhook payload
 
 ---
 
@@ -693,8 +707,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - SENDGRID_API_KEY=${SENDGRID_API_KEY}
-      - SEPAY_API_KEY=${SEPAY_API_KEY}
-      - SEPAY_WEBHOOK_SECRET=${SEPAY_WEBHOOK_SECRET}
+      - SEPAY_WEBHOOK_JWT_SECRET=${SEPAY_WEBHOOK_JWT_SECRET}
     depends_on:
       - db
       - redis

@@ -235,8 +235,7 @@ This document outlines the technology choices for the Lottery system, with ratio
   - `DATABASE_URL`
   - `JWT_SECRET`
   - `SENDGRID_API_KEY`
-  - `SEPAY_API_KEY`
-  - `SEPAY_WEBHOOK_SECRET`
+  - `SEPAY_WEBHOOK_JWT_SECRET` (for webhook authentication)
   - `REDIS_URL` (required for authentication)
 
 ### Security Best Practices
@@ -290,8 +289,7 @@ This document outlines the technology choices for the Lottery system, with ratio
 DATABASE_URL=postgresql://user:pass@localhost:5432/lottery_dev
 JWT_SECRET=your-secret-key-min-32-chars
 SENDGRID_API_KEY=SG.xxxxx
-SEPAY_API_KEY=xxxxx
-SEPAY_WEBHOOK_SECRET=xxxxx
+SEPAY_WEBHOOK_JWT_SECRET=your-sepay-webhook-secret-min-32-chars
 REDIS_URL=redis://localhost:6379
 NODE_ENV=development
 ```

@@ -76,7 +76,11 @@ async function seed() {
           startTime,
           endTime,
           ticketPrice: 10000, // 10,000 VND
-          paymentType: 'direct',
+          paymentType: 'transfer',
+          bankNameOrCode: 'MBBank',
+          accountNumber: '0706213188',
+          accountHolderName: 'John Doe',
+          sepayGateway: 'https://sepay.com',
           status: 'active',
           excludeWinningNumbers: true,
         })

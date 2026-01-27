@@ -57,8 +57,7 @@ This document outlines the step-by-step implementation plan for the Lottery syst
      REDIS_URL=redis://localhost:6379
      JWT_SECRET=<generate-secure-secret>
      SENDGRID_API_KEY=<to-be-configured>
-     SEPAY_API_KEY=<to-be-configured>
-     SEPAY_WEBHOOK_SECRET=<to-be-configured>
+     SEPAY_WEBHOOK_JWT_SECRET=<generate-secure-secret>
      ```
 
 5. **Project Structure**
@@ -537,6 +536,103 @@ This document outlines the step-by-step implementation plan for the Lottery syst
 
 ---
 
+### Phase 4.1: Payment Integration Updates (Week 3, Day 5)
+
+#### Tasks
+1. **Update Campaign Schema & Payment Settings**
+   - [ ] Remove `account_holder_name` field from campaigns table
+   - [ ] Remove `sepay_gateway` field from campaigns table
+   - [ ] Update campaign edit form to remove these fields
+   - [ ] Add `SEPAY_WEBHOOK_JWT_SECRET` to environment variables
+
+2. **Update Campaign Edit Form - Payment Section**
+   - [ ] Remove "Account Holder Name" field
+   - [ ] Remove "SePay Gateway URL" field
+   - [ ] Add "SePay Webhook API Key" field (read-only)
+   - [ ] Generate JWT token with campaign UUID as subject using `SEPAY_WEBHOOK_JWT_SECRET`
+   - [ ] Display generated JWT token in the field for admin to copy
+
+3. **Update Order Payment Reference ID Generation**
+   - [ ] Change format from `ORD-{timestamp}-{random}` to `LTR{6-digit-number}`
+   - [ ] Implement counter-based generation: Find highest number, increment by 1
+   - [ ] Handle initial case (no orders yet): Start from `LTR000001`
+   - [ ] Ensure uniqueness with database constraint
+
+4. **Update QR Code Generation**
+   - [ ] Change VietQR URL to use `https://qr.sepay.vn/img`
+   - [ ] Update query parameters:
+     - `acc`: accountNumber from campaign
+     - `bank`: bankNameOrCode from campaign
+     - `amount`: totalAmount from order
+     - `des`: paymentReferenceId (e.g., "LTR102969")
+   - [ ] Example: `https://qr.sepay.vn/img?acc=0706213188&bank=Vietcombank&amount=100000&des=LTR102969`
+
+5. **Update Webhook Endpoint (`/api/v1/webhooks/sepay/route.ts`)**
+   - [ ] Implement JWT authentication:
+     - Extract API key from header: `Authorization: Apikey {JWT}`
+     - Verify JWT using `SEPAY_WEBHOOK_JWT_SECRET` (skip expiration check)
+     - Decode JWT to get campaign UUID from `sub` claim
+     - Find campaign by UUID (any status is acceptable)
+     - If campaign not found: Return 203
+   
+   - [ ] Update payload extraction to match new format:
+     ```typescript
+     {
+       gateway: string,
+       transactionDate: string,
+       accountNumber: string,
+       subAccount: string | null,
+       code: string,  // This is paymentReferenceId
+       content: string,
+       transferType: string,
+       description: string | null,
+       transferAmount: number,
+       referenceCode: string,  // This is sepayTransactionId
+       accumulated: number,
+       id: number
+     }
+     ```
+   
+   - [ ] Implement reconciliation logic:
+     - Find order by `payload.code` (paymentReferenceId)
+     - Check `payload.transferAmount` === `order.totalAmount`
+     - Check `payload.accountNumber` === `order.campaign.accountNumber`
+     - If mismatch:
+       - Set order.payment_status = 'failed'
+       - Set order.error_message = stringify({ ...payload, reconciliationResult: "mismatch details" })
+       - Return 203
+     - If match and order.payment_status = 'success':
+       - Return 208 (already processed, idempotency)
+     - If match and order.payment_status = 'pending':
+       - Set order.payment_status = 'success'
+       - Set order.sepay_transaction_id = payload.referenceCode
+       - Set order.received_at = new Date()
+       - Set order.transaction_date = payload.transactionDate
+       - Generate and create tickets
+       - Trigger email job
+       - Return 200
+
+6. **Add transaction_date Column to Orders Table**
+   - [ ] Add `transaction_date` column (TIMESTAMP, NULLABLE) to orders table
+   - [ ] Create migration file
+   - [ ] Update Drizzle schema
+
+**Deliverable**: Updated payment integration with SePay webhook and new QR format
+
+**Testing**:
+- Edit campaign → Verify removed fields not shown
+- Edit campaign → Verify JWT token generated and displayed
+- Create order → Verify paymentReferenceId format is LTR + 6 digits
+- Generate QR → Verify new URL format with correct params
+- Mock webhook with valid JWT → Should succeed
+- Mock webhook with invalid JWT → Should return 203
+- Mock webhook with valid data → Should update order and create tickets
+- Mock webhook with mismatched amount → Should fail order with error message
+- Mock webhook for already processed order → Should return 208
+- Verify transaction_date saved correctly from webhook
+
+---
+
 ### Phase 5: Ticket Purchase Flow (Week 3, Day 5 + Week 4, Days 1-3)
 
 #### Tasks
@@ -555,10 +651,14 @@ This document outlines the step-by-step implementation plan for the Lottery syst
 3. **Order Service**
    - [ ] Create `src/services/order.service.ts`
    - [ ] Implement order creation
-   - [ ] Implement payment reference ID generation:
-     ```typescript
-     `ORD-${dayjs().format('YYYYMMDDHHmmss')}-${randomString(6)}`
-     ```
+   - [ ] Implement payment reference ID generation (updated in Phase 4.1):
+     - Format: `/^LTR\d{6}$/` (e.g., "LTR000001", "LTR102969")
+     - Algorithm: Counter-based generation
+       1. Query highest existing payment_reference_id matching pattern
+       2. Extract number part and increment by 1
+       3. If no orders exist yet, start from "LTR000001"
+       4. Format: `LTR${number.toString().padStart(6, '0')}`
+     - Ensure uniqueness with database constraint
    - [ ] Set expires_at = now + 10 minutes (for transfer)
    - [ ] Implement status update methods
    - [ ] Implement order_tickets linking (ticket_id FK)
@@ -583,10 +683,11 @@ This document outlines the step-by-step implementation plan for the Lottery syst
        8e. Trigger email job
        8f. Return order with tickets
 
-     IF payment_type = 'transfer':
-       8a. Generate VietQR code
-       8b. Return payment info + QR
-       8c. Client will poll for status updates
+    IF payment_type = 'transfer':
+      8a. Generate QR URL (updated in Phase 4.1):
+          Format: https://qr.sepay.vn/img?acc={accountNumber}&bank={bankNameOrCode}&amount={totalAmount}&des={paymentReferenceId}
+      8b. Return payment info + QR URL
+      8c. Client will poll for status updates
      ```
    - [ ] Add comprehensive error handling
    - [ ] Handle concurrent purchases (ticket number uniqueness)
@@ -669,29 +770,45 @@ This document outlines the step-by-step implementation plan for the Lottery syst
 #### Tasks
 1. **Payment Service**
    - [ ] Create `src/services/payment.service.ts`
-   - [ ] Implement VietQR code generation
-   - [ ] Install `qrcode` library
-   - [ ] Format bank transfer content
-   - [ ] Implement webhook signature verification (HMAC)
+   - [ ] Implement QR URL generation (updated in Phase 4.1):
+     - URL format: `https://qr.sepay.vn/img?acc={accountNumber}&bank={bankNameOrCode}&amount={amount}&des={referenceId}`
+     - No need for `qrcode` library, just return URL string
+   - [ ] Implement JWT verification for webhook authentication (Phase 4.1)
+   - [ ] Implement reconciliation logic (Phase 4.1)
    - [ ] Implement webhook processing logic
 
-2. **Webhook Endpoint**
+2. **Webhook Endpoint** (Updated in Phase 4.1)
    - [ ] Create `/api/v1/webhooks/sepay/route.ts`
    - [ ] Flow:
      ```typescript
      POST /api/v1/webhooks/sepay
-     1. Verify signature (HMAC-SHA256)
-     2. Extract payment data
-     3. Find order by payment_reference_id
-     4. Update order:
-        - payment_status = 'success'
-        - sepay_transaction_id
-        - received_at
-     5. Generate unique ticket numbers (6 digits, random)
-     6. Create tickets in tickets table (batch insert)
-     7. Create order_tickets (ticket_id FK to tickets.id)
-     8. Trigger email job
-     9. Return 200 OK
+     Header: Authorization: Apikey {JWT}
+     
+     1. Extract JWT from Authorization header
+     2. Verify JWT using SEPAY_WEBHOOK_JWT_SECRET (skip expiration)
+     3. Decode JWT to get campaign UUID from subject
+     4. Find campaign by UUID (any status)
+     5. If campaign not found → Return 203
+     6. Extract webhook payload (SePay format)
+     7. Find order by payload.code (payment_reference_id)
+     8. Reconcile transaction:
+        - Check payload.transferAmount === order.totalAmount
+        - Check payload.accountNumber === order.campaign.accountNumber
+     9. If reconciliation fails:
+        - Set payment_status = 'failed'
+        - Set error_message = stringify({ ...payload, reconciliationResult })
+        - Return 203
+     10. If order.payment_status = 'success' → Return 208 (idempotency)
+     11. If reconciliation succeeds and status = 'pending':
+         - payment_status = 'success'
+         - sepay_transaction_id = payload.referenceCode
+         - received_at = new Date()
+         - transaction_date = payload.transactionDate
+         - Generate unique ticket numbers (6 digits, random)
+         - Create tickets in tickets table (batch insert)
+         - Create order_tickets (ticket_id FK to tickets.id)
+         - Trigger email job
+         - Return 200 OK
      ```
    - [ ] Implement idempotency (check if already processed)
    - [ ] Add error handling and logging
@@ -699,18 +816,21 @@ This document outlines the step-by-step implementation plan for the Lottery syst
 
 3. **Testing Webhook**
    - [ ] Create test endpoint or script to mock SePay webhook
-   - [ ] Test with real payload structure
-   - [ ] Verify signature validation works
+   - [ ] Test with real SePay payload structure
+   - [ ] Verify JWT authentication works
 
 **Deliverable**: Complete payment integration with SePay webhook
 
 **Testing**:
-- Purchase tickets (transfer) → Show QR and payment info
-- Mock webhook call with correct signature → Should succeed
-- Mock webhook with invalid signature → Should return 401
-- Test idempotency: send same webhook twice → Process once
+- Purchase tickets (transfer) → Show QR URL and payment info
+- Mock webhook call with valid JWT → Should succeed
+- Mock webhook with invalid JWT → Should return 203
+- Mock webhook with mismatched amount → Should fail order, return 203
+- Mock webhook with mismatched account → Should fail order, return 203
+- Test idempotency: send same webhook twice → First 200, second 208
 - Verify tickets created only after webhook success
 - Verify order_tickets links to ticket_id (not ticket_number)
+- Verify transaction_date saved from webhook
 - Test timeout scenario (manually set expires_at in past)
 - Verify polling updates payment page to success state
 
@@ -1502,6 +1622,7 @@ describe('Ticket Purchase Flow', () => {
 | Phase 2: Auth | 3 days | Redis-backed JWT authentication |
 | Phase 3: Campaign CRUD | 4 days | Campaign management (3-section form) |
 | Phase 4: Public Campaign | 2 days | Public campaign page |
+| Phase 4.1: Payment Updates | 1 day | Updated payment integration with new QR & webhook |
 | Phase 5: Purchase | 4 days | Ticket purchase with polling |
 | Phase 6: Payment | 4 days | SePay webhook integration |
 | Phase 7: Email | 2 days | Email with ticket images |
@@ -1512,7 +1633,7 @@ describe('Ticket Purchase Flow', () => {
 | Phase 12: Testing | 3 days | Vitest + manual QA |
 | Phase 13: Deployment | 2 days | AWS EC2 production launch |
 
-**Total Estimated Time**: 8 weeks (40 working days)
+**Total Estimated Time**: 8 weeks + 1 day (41 working days)
 
 **Note**: Timeline assumes 1 developer working full-time. Adjust for team size.
 

@@ -213,8 +213,6 @@ Create a new campaign.
   "paymentType": "transfer",
   "bankNameOrCode": "MB Bank",
   "accountNumber": "0123456789",
-  "accountHolderName": "NGUYEN VAN A",
-  "sepayGateway": "https://my.sepay.vn/...",
   "status": "active",
   "excludeWinningNumbers": true,
   "prizes": [
@@ -303,8 +301,6 @@ Get campaign details by ID.
       "paymentType": "transfer",
       "bankNameOrCode": "MB Bank",
       "accountNumber": "0123456789",
-      "accountHolderName": "NGUYEN VAN A",
-      "sepayGateway": "https://my.sepay.vn/...",
       "status": "active",
       "excludeWinningNumbers": true,
       "prizes": [
@@ -493,7 +489,7 @@ Purchase tickets for a campaign.
     "order": {
       "id": 1,
       "uuid": "770e8400-e29b-41d4-a716-446655440001",
-      "paymentReferenceId": "ORD-20260126123045-ABC123",
+      "paymentReferenceId": "LTR000001",
       "totalAmount": 100000,
       "ticketsCount": 5,
       "paymentType": "transfer",
@@ -501,13 +497,12 @@ Purchase tickets for a campaign.
       "expiresAt": "2026-01-26T12:40:45Z"
     },
     "payment": {
-      "qrCode": "data:image/png;base64,iVBORw0KGgoAAAANS...",
+      "qrCodeUrl": "https://qr.sepay.vn/img?acc=0123456789&bank=MB Bank&amount=100000&des=LTR000001",
       "bankInfo": {
         "bankName": "MB Bank",
         "accountNumber": "0123456789",
-        "accountHolderName": "NGUYEN VAN A",
         "amount": 100000,
-        "content": "ORD-20260126123045-ABC123"
+        "content": "LTR000001"
       }
     }
   }
@@ -561,12 +556,13 @@ Get order status by payment reference ID. Used for polling.
     "order": {
       "id": 1,
       "uuid": "770e8400-e29b-41d4-a716-446655440001",
-      "paymentReferenceId": "ORD-20260126123045-ABC123",
+      "paymentReferenceId": "LTR000001",
       "totalAmount": 100000,
       "ticketsCount": 5,
       "paymentStatus": "success",
       "createdAt": "2026-01-26T12:30:45Z",
       "receivedAt": "2026-01-26T12:35:12Z",
+      "transactionDate": "2026-01-26T12:35:10Z",
       "expiresAt": "2026-01-26T12:40:45Z",
       "tickets": [
         {
@@ -831,21 +827,62 @@ Delete a winning number (redo/clear a prize draw).
 ### POST /api/v1/webhooks/sepay
 Receive payment notification from SePay.
 
-**Access**: Public (verified by signature)
+**Access**: Public (verified by JWT authentication)
 
 **Headers**:
-- `X-Sepay-Signature`: HMAC signature for verification
+- `Authorization`: `Apikey {JWT_TOKEN}` - JWT signed with SEPAY_WEBHOOK_JWT_SECRET, subject contains campaign UUID
 
-**Request Body** (example, depends on SePay format):
+**JWT Authentication Flow**:
+1. Extract JWT from Authorization header (format: "Apikey {JWT}")
+2. Verify JWT using SEPAY_WEBHOOK_JWT_SECRET (skip expiration validation)
+3. Decode JWT to get campaign UUID from `sub` claim
+4. Find campaign by UUID (any status is acceptable)
+5. If campaign not found → Return 203
+6. If campaign found → Proceed with webhook processing
+
+**Request Body** (SePay format):
 ```json
 {
-  "transactionId": "SEPAY123456789",
-  "referenceId": "ORD-20260126123045-ABC123",
-  "amount": 100000,
-  "status": "success",
-  "timestamp": "2026-01-26T12:35:12Z"
+  "gateway": "Vietcombank",
+  "transactionDate": "2026-01-27 08:45:29",
+  "accountNumber": "0706213188",
+  "subAccount": null,
+  "code": "LTR000001",
+  "content": "LTR000001",
+  "transferType": "in",
+  "description": null,
+  "transferAmount": 10000,
+  "referenceCode": "510787.270126.084529",
+  "accumulated": 10000,
+  "id": 241439
 }
 ```
+
+**Field Mapping**:
+- `code` → payment_reference_id (e.g., "LTR000001")
+- `referenceCode` → sepay_transaction_id (e.g., "510787.270126.084529")
+- `transferAmount` → total_amount for reconciliation
+- `accountNumber` → campaign.account_number for reconciliation
+- `transactionDate` → order.transaction_date
+
+**Reconciliation Logic**:
+1. Find order by `code` (payment_reference_id)
+2. Check `transferAmount` === `order.totalAmount`
+3. Check `accountNumber` === `order.campaign.accountNumber`
+4. If mismatch:
+   - Set order.payment_status = 'failed'
+   - Set order.error_message = JSON.stringify({ ...payload, reconciliationResult: "mismatch details" })
+   - Return 203
+5. If match and order.payment_status = 'success':
+   - Return 208 (idempotency - already processed)
+6. If match and order.payment_status = 'pending':
+   - Set order.payment_status = 'success'
+   - Set order.sepay_transaction_id = `referenceCode`
+   - Set order.received_at = new Date()
+   - Set order.transaction_date = `transactionDate`
+   - Generate and create tickets
+   - Trigger email job
+   - Return 200
 
 **Response** (200 OK):
 ```json
@@ -855,14 +892,21 @@ Receive payment notification from SePay.
 }
 ```
 
-**Response** (401 Unauthorized):
+**Response** (203 Non-Authoritative Information):
+Used for various non-critical failures:
 ```json
 {
   "success": false,
-  "error": {
-    "code": "INVALID_SIGNATURE",
-    "message": "Chữ ký không hợp lệ"
-  }
+  "message": "Campaign not found / Order not found / Reconciliation failed"
+}
+```
+
+**Response** (208 Already Reported):
+Order already processed (idempotency):
+```json
+{
+  "success": true,
+  "message": "Order already processed"
 }
 ```
 
@@ -878,6 +922,11 @@ Receive payment notification from SePay.
 5. Triggers email sending job with ticket images
 
 **Note**: 
+- JWT must have campaign UUID as subject
+- Webhook response codes:
+  - 200: Success
+  - 203: Non-critical failure (campaign/order not found, reconciliation failed)
+  - 208: Already processed (idempotency)
 - `order_tickets` table uses `ticket_id` FK relationship
 - Webhook must handle ticket generation atomically (transaction)
 
@@ -935,8 +984,6 @@ const createCampaignSchema = z.object({
   paymentType: z.enum(['direct', 'transfer']),
   bankNameOrCode: z.string().optional(),
   accountNumber: z.string().optional(),
-  accountHolderName: z.string().optional(),
-  sepayGateway: z.string().url().optional(),
   status: z.enum(['active', 'inactive']).default('active'),
   excludeWinningNumbers: z.boolean().default(true),
   prizes: z.array(z.object({
@@ -951,8 +998,7 @@ const createCampaignSchema = z.object({
 ).refine(
   (data) => {
     if (data.paymentType === 'transfer') {
-      return data.bankNameOrCode && data.accountNumber && 
-             data.accountHolderName && data.sepayGateway;
+      return data.bankNameOrCode && data.accountNumber;
     }
     return true;
   },
