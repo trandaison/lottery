@@ -4,6 +4,7 @@ import { userService } from '@/services/user.service';
 import { orderService } from '@/services/order.service';
 import { campaignService } from '@/services/campaign.service';
 import { ticketService } from '@/services/ticket.service';
+import { emailService } from '@/services/email.service';
 import { generateQRUrl } from '@/services/payment.service';
 import type { ApiResponse } from '@/types';
 
@@ -137,8 +138,23 @@ export async function POST(request: NextRequest, context: RouteContext) {
       // 8b-8d. Generate tickets and link to order
       const tickets = await orderService.createTicketsForOrder(order.id);
 
-      // 8e. TODO: Trigger email job (Phase 7)
-      // await emailService.sendTicketEmail(order, tickets);
+      // 8e. Trigger email notification (Phase 7)
+      // Get full ticket objects for email
+      try {
+        const fullTickets = await ticketService.getTicketsByOrderId(order.id);
+        if (fullTickets.length > 0) {
+          // Send email asynchronously (don't wait for it to complete)
+          emailService
+            .sendTicketEmail(order, user, campaign, fullTickets)
+            .catch((error) => {
+              console.error('[Purchase] Failed to send email:', error);
+              // Don't fail the purchase if email fails
+            });
+        }
+      } catch (emailError) {
+        console.error('[Purchase] Error preparing email:', emailError);
+        // Don't fail the purchase if email preparation fails
+      }
 
       // 8f. Return order with tickets
       return NextResponse.json<
