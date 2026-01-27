@@ -6,6 +6,7 @@ import { CampaignStats } from '@/components/campaign/CampaignStats';
 import { CampaignDescription } from '@/components/campaign/CampaignDescription';
 import { PrizeTable } from '@/components/campaign/PrizeTable';
 import { CountdownTimer } from '@/components/campaign/CountdownTimer';
+import { PurchaseForm } from '@/components/campaign/PurchaseForm';
 import { PurchaseFormPlaceholder } from '@/components/campaign/PurchaseFormPlaceholder';
 import dayjs from 'dayjs';
 import 'dayjs/locale/vi';
@@ -125,12 +126,19 @@ export default async function CampaignPage({ params }: CampaignPageProps) {
             {/* Right Column: Purchase Form or Message */}
             <div className="lg:col-span-1">
               <div className="sticky top-4">
-                <PurchaseFormPlaceholder
-                  status={campaign.status}
-                  isWithinTimeRange={isWithinTimeRange}
-                  startTime={startTime}
-                  endTime={endTime}
-                />
+                {canPurchase ? (
+                  <PurchaseForm
+                    campaignSlug={campaign.slug}
+                    ticketPrice={campaign.ticketPrice}
+                  />
+                ) : (
+                  <PurchaseFormPlaceholder
+                    status={campaign.status}
+                    isWithinTimeRange={isWithinTimeRange}
+                    startTime={startTime}
+                    endTime={endTime}
+                  />
+                )}
               </div>
             </div>
           </div>

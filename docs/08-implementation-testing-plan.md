@@ -683,11 +683,11 @@ This document outlines the step-by-step implementation plan for the Lottery syst
        8e. Trigger email job
        8f. Return order with tickets
 
-    IF payment_type = 'transfer':
-      8a. Generate QR URL (updated in Phase 4.1):
-          Format: https://qr.sepay.vn/img?acc={accountNumber}&bank={bankNameOrCode}&amount={totalAmount}&des={paymentReferenceId}
-      8b. Return payment info + QR URL
-      8c. Client will poll for status updates
+     IF payment_type = 'transfer':
+       8a. Generate QR URL (updated in Phase 4.1):
+           Format: https://qr.sepay.vn/img?acc={accountNumber}&bank={bankNameOrCode}&amount={totalAmount}&des={paymentReferenceId}
+       8b. Return payment info + QR URL
+       8c. Client will poll for status updates
      ```
    - [ ] Add comprehensive error handling
    - [ ] Handle concurrent purchases (ticket number uniqueness)

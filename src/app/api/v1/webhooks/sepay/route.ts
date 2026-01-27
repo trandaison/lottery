@@ -127,21 +127,21 @@ export async function POST(request: NextRequest) {
         })
         .where(eq(orders.id, order.id));
 
-      // Generate and create tickets
-      const ticketNumbers = generateUniqueTicketNumbers(order.ticketsCount);
+      // Generate unique ticket numbers using ticket service
+      const { ticketService } = await import('@/services/ticket.service');
+      const ticketNumbers = await ticketService.generateUniqueTicketNumbers(
+        order.campaignId,
+        order.ticketsCount
+      );
 
-      // Create tickets in database
-      const createdTickets = await db
-        .insert(tickets)
-        .values(
-          ticketNumbers.map((ticketNumber) => ({
-            campaignId: order.campaignId,
-            userId: order.userId,
-            ticketNumber,
-            isWinning: false,
-          })),
-        )
-        .returning();
+      // Create tickets in database using ticket service
+      const createdTickets = await ticketService.createTickets(
+        ticketNumbers.map((ticketNumber) => ({
+          campaignId: order.campaignId,
+          userId: order.userId,
+          ticketNumber,
+        }))
+      );
 
       // Link tickets to order via order_tickets
       await db.insert(orderTickets).values(
@@ -181,20 +181,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * Generate unique 6-digit ticket numbers
- * This is a simple random generation - in Phase 5, this will be replaced
- * with proper uniqueness checking against database
- */
-function generateUniqueTicketNumbers(count: number): string[] {
-  const numbers = new Set<string>();
-
-  while (numbers.size < count) {
-    const randomNum = Math.floor(Math.random() * 1000000)
-      .toString()
-      .padStart(6, '0');
-    numbers.add(randomNum);
-  }
-
-  return Array.from(numbers);
-}
