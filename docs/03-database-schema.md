@@ -58,6 +58,7 @@ Stores lottery campaign information.
 | payment_type | ENUM('direct', 'transfer') | NOT NULL | Payment method |
 | bank_name_or_code | VARCHAR(100) | NULLABLE | Bank name or code for QR |
 | account_number | VARCHAR(50) | NULLABLE | Bank account number |
+| webhook_api_key | TEXT | NULLABLE | JWT token for SePay webhook authentication |
 | status | ENUM('active', 'drawing', 'completed', 'canceled') | NOT NULL, DEFAULT 'active' | Campaign status |
 | exclude_winning_numbers | BOOLEAN | NOT NULL, DEFAULT true | Exclude winning tickets from subsequent draws |
 | canceled_at | TIMESTAMP | NULLABLE | Time when campaign was canceled |
@@ -79,6 +80,10 @@ Stores lottery campaign information.
 - slug is auto-generated from title but can be edited
 - Bank info only required if payment_type = 'transfer'
 - Removed `account_holder_name` and `sepay_gateway` fields (Phase 4.1 update)
+- `webhook_api_key` is automatically generated when creating a campaign with `payment_type = 'transfer'`
+- `webhook_api_key` is a JWT token used for SePay webhook authentication
+- JWT is generated using campaign UUID as subject claim
+- JWT can be reissued (rotated) via API endpoint `/api/v1/admin/campaigns/[id]/webhook-jwt` (POST)
 - Campaign status flow:
   - `active`: Default after creation, can purchase tickets
   - `drawing`: Admin started drawing prizes (popup confirm)

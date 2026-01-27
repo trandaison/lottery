@@ -283,7 +283,7 @@ SENDGRID_API_KEY=SG.xxxxx
 
 # SePay
 SEPAY_API_KEY=xxxxx
-SEPAY_WEBHOOK_SECRET=xxxxx
+SEPAY_WEBHOOK_JWT_SECRET=xxxxx
 
 # Redis (optional)
 REDIS_URL=redis://localhost:6379

@@ -10,16 +10,17 @@ import {
 import { eq, desc, asc, and, sql, count, countDistinct } from 'drizzle-orm';
 import type { CampaignWithPrizes, CampaignStatistics } from '@/types';
 import { tickets, orders } from '@/db/schema';
+import { generateWebhookJWT } from './payment.server';
 
 /**
  * Campaign Service
- * 
+ *
  * Handles all campaign-related business logic including:
  * - CRUD operations
  * - Slug generation
  * - Status transitions and validation
  * - Statistics calculation
- * 
+ *
  * Architecture Principles:
  * - Uses BIGINT IDs for internal operations
  * - Generates UUIDs automatically via database
@@ -83,11 +84,32 @@ export class CampaignService {
 
     // Create campaign and prizes in transaction
     return await db.transaction(async (tx) => {
+      // Generate webhook JWT if payment type is transfer
+      let webhookApiKey: string | null = null;
+      if (data.paymentType === 'transfer') {
+        // We'll generate JWT after campaign is created (need UUID)
+        // For now, set to null, will update after creation
+      }
+
       // Insert campaign
       const [campaign] = await tx
         .insert(campaigns)
-        .values({ ...data, slug })
+        .values({ ...data, slug, webhookApiKey: null })
         .returning();
+
+      // Generate webhook JWT if payment type is transfer
+      if (data.paymentType === 'transfer' && campaign.uuid) {
+        webhookApiKey = generateWebhookJWT(campaign.uuid);
+
+        // Update campaign with webhook API key
+        const [updated] = await tx
+          .update(campaigns)
+          .set({ webhookApiKey })
+          .where(eq(campaigns.id, campaign.id))
+          .returning();
+
+        campaign.webhookApiKey = updated.webhookApiKey;
+      }
 
       // Insert prizes
       const createdPrizes = await tx

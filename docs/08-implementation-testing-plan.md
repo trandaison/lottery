@@ -574,7 +574,7 @@ This document outlines the step-by-step implementation plan for the Lottery syst
      - Decode JWT to get campaign UUID from `sub` claim
      - Find campaign by UUID (any status is acceptable)
      - If campaign not found: Return 203
-   
+
    - [ ] Update payload extraction to match new format:
      ```typescript
      {
@@ -592,7 +592,7 @@ This document outlines the step-by-step implementation plan for the Lottery syst
        id: number
      }
      ```
-   
+
    - [ ] Implement reconciliation logic:
      - Find order by `payload.code` (paymentReferenceId)
      - Check `payload.transferAmount` === `order.totalAmount`
@@ -783,7 +783,7 @@ This document outlines the step-by-step implementation plan for the Lottery syst
      ```typescript
      POST /api/v1/webhooks/sepay
      Header: Authorization: Apikey {JWT}
-     
+
      1. Extract JWT from Authorization header
      2. Verify JWT using SEPAY_WEBHOOK_JWT_SECRET (skip expiration)
      3. Decode JWT to get campaign UUID from subject
@@ -1292,7 +1292,7 @@ This document outlines the step-by-step implementation plan for the Lottery syst
      - JWT_SECRET (strong, random)
      - SENDGRID_API_KEY (production)
      - SEPAY_API_KEY (production)
-     - SEPAY_WEBHOOK_SECRET
+     - SEPAY_WEBHOOK_JWT_SECRET
      - NODE_ENV=production
 
 4. **Database Migration**

@@ -38,8 +38,7 @@ export const campaigns = pgTable(
     paymentType: paymentTypeEnum('payment_type').notNull().default('direct'),
     bankNameOrCode: varchar('bank_name_or_code', { length: 100 }),
     accountNumber: varchar('account_number', { length: 50 }),
-    accountHolderName: varchar('account_holder_name', { length: 255 }),
-    sepayGateway: varchar('sepay_gateway', { length: 255 }),
+    webhookApiKey: text('webhook_api_key'), // JWT token for SePay webhook authentication
     status: campaignStatusEnum('status').notNull().default('active'),
     excludeWinningNumbers: boolean('exclude_winning_numbers')
       .notNull()

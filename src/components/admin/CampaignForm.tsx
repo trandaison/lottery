@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Trash2, Plus, Info, Gift, CreditCard } from 'lucide-react';
+import { Trash2, Plus, Info, Gift, CreditCard, Copy, Check, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,8 +43,6 @@ const campaignFormSchema = z
     paymentType: z.enum(['direct', 'transfer']),
     bankNameOrCode: z.string().optional(),
     accountNumber: z.string().optional(),
-    accountHolderName: z.string().optional(),
-    sepayGateway: z.string().optional(),
     prizes: z
       .array(
         z.object({
@@ -63,12 +61,7 @@ const campaignFormSchema = z
   .refine(
     (data) => {
       if (data.paymentType === 'transfer') {
-        return (
-          data.bankNameOrCode &&
-          data.accountNumber &&
-          data.accountHolderName &&
-          data.sepayGateway
-        );
+        return data.bankNameOrCode && data.accountNumber;
       }
       return true;
     },
@@ -96,6 +89,12 @@ export function CampaignForm({
   mode,
 }: CampaignFormProps) {
   const [autoSlug, setAutoSlug] = useState(true);
+  const [copiedWebhookKey, setCopiedWebhookKey] = useState(false);
+  const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
+  const [webhookJWT, setWebhookJWT] = useState<string | null>(
+    campaign?.webhookApiKey || null
+  );
+  const [isReissuing, setIsReissuing] = useState(false);
 
   const form = useForm<CampaignFormValues>({
     resolver: zodResolver(campaignFormSchema),
@@ -112,8 +111,6 @@ export function CampaignForm({
           paymentType: campaign.paymentType,
           bankNameOrCode: campaign.bankNameOrCode || '',
           accountNumber: campaign.accountNumber || '',
-          accountHolderName: campaign.accountHolderName || '',
-          sepayGateway: campaign.sepayGateway || '',
           prizes: campaign.prizes.map((p) => ({
             title: p.title,
             prizesCount: p.prizesCount,
@@ -133,8 +130,6 @@ export function CampaignForm({
           paymentType: 'direct' as const,
           bankNameOrCode: '',
           accountNumber: '',
-          accountHolderName: '',
-          sepayGateway: '',
           prizes: [
             {
               title: 'Giải nhất',
@@ -153,6 +148,79 @@ export function CampaignForm({
 
   const paymentType = form.watch('paymentType');
   const title = form.watch('title');
+
+  // Initialize webhook JWT from campaign prop
+  useEffect(() => {
+    if (campaign?.webhookApiKey) {
+      setWebhookJWT(campaign.webhookApiKey);
+    } else if (campaign?.id && campaign?.paymentType === 'transfer') {
+      // Fetch if missing
+      const fetchWebhookJWT = async () => {
+        try {
+          const response = await fetch(
+            `/api/v1/admin/campaigns/${campaign.id}/webhook-jwt`
+          );
+          const result = await response.json();
+
+          if (result?.success && result.data.token) {
+            setWebhookJWT(result.data.token);
+          }
+        } catch (error) {
+          console.error('Failed to fetch webhook JWT:', error);
+        }
+      };
+
+      fetchWebhookJWT();
+    }
+  }, [campaign?.id, campaign?.webhookApiKey, campaign?.paymentType]);
+
+  // Copy webhook key to clipboard
+  const copyWebhookKey = async () => {
+    if (webhookJWT) {
+      await navigator.clipboard.writeText(webhookJWT);
+      setCopiedWebhookKey(true);
+      setTimeout(() => setCopiedWebhookKey(false), 2000);
+    }
+  };
+
+  // Copy webhook URL to clipboard
+  const copyWebhookUrl = async () => {
+    const webhookUrl = `${window.location.origin}/api/v1/webhooks/sepay`;
+    await navigator.clipboard.writeText(webhookUrl);
+    setCopiedWebhookUrl(true);
+    setTimeout(() => setCopiedWebhookUrl(false), 2000);
+  };
+
+  // Reissue webhook JWT
+  const handleReissue = async () => {
+    if (!campaign?.id) return;
+
+    setIsReissuing(true);
+    try {
+      const response = await fetch(
+        `/api/v1/admin/campaigns/${campaign.id}/webhook-jwt`,
+        {
+          method: 'POST',
+        }
+      );
+      const result = await response.json();
+
+      if (result?.success && result.data.token) {
+        setWebhookJWT(result.data.token);
+      } else {
+        console.error('Failed to reissue webhook JWT:', result);
+      }
+    } catch (error) {
+      console.error('Error reissuing webhook JWT:', error);
+    } finally {
+      setIsReissuing(false);
+    }
+  };
+
+  // Get webhook URL
+  const webhookUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/v1/webhooks/sepay`
+    : '';
 
   // Auto-generate slug from title
   useEffect(() => {
@@ -371,7 +439,7 @@ export function CampaignForm({
             <div className="space-y-4">
               {fields.map((field, index) => (
                 <Card key={field.id}>
-                  <CardContent className="p-6">
+                  <CardContent className="px-6">
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium">Prize #{index + 1}</h4>
@@ -551,34 +619,96 @@ export function CampaignForm({
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="accountHolderName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Account Holder Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="NGUYEN VAN A" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Display webhook configuration for existing campaigns with transfer payment */}
+                {mode === 'edit' && paymentType === 'transfer' && (
+                  <>
+                    {/* Webhook URL */}
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                      <FormLabel className="text-sm font-medium">
+                        Webhook URL
+                      </FormLabel>
+                      <FormDescription className="mt-1 mb-2 text-xs">
+                        Configure this URL in SePay webhook settings.
+                      </FormDescription>
+                      <div className="flex gap-2">
+                        <Input
+                          value={webhookUrl}
+                          readOnly
+                          className="font-mono text-xs bg-white"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={copyWebhookUrl}
+                          className="shrink-0"
+                        >
+                          {copiedWebhookUrl ? (
+                            <>
+                              <Check className="h-4 w-4 mr-1" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-4 w-4 mr-1" />
+                              Copy
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
 
-                <FormField
-                  control={form.control}
-                  name="sepayGateway"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>SePay Gateway URL</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://sepay.vn/..." {...field} />
-                      </FormControl>
-                      <FormDescription>URL provided by SePay for webhook integration</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    {/* Webhook API Key */}
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                      <FormLabel className="text-sm font-medium">
+                        SePay Webhook API Key
+                      </FormLabel>
+                      <FormDescription className="mt-1 mb-2 text-xs">
+                        Use this JWT token in SePay webhook configuration.
+                        Copy and paste it into the SePay dashboard as the API key.
+                      </FormDescription>
+                      <div className="flex gap-2">
+                        <Input
+                          value={webhookJWT || ''}
+                          readOnly
+                          className="font-mono text-xs bg-white"
+                          placeholder="Will be generated after campaign creation"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleReissue}
+                          disabled={isReissuing || !campaign?.id}
+                          className="shrink-0"
+                        >
+                          <RotateCcw className={`h-4 w-4 mr-1 ${isReissuing ? 'animate-spin' : ''}`} />
+                          {isReissuing ? 'Reissuing...' : 'Reissue'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={copyWebhookKey}
+                          disabled={!webhookJWT}
+                          className="shrink-0"
+                        >
+                          {copiedWebhookKey ? (
+                            <>
+                              <Check className="h-4 w-4 mr-1" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-4 w-4 mr-1" />
+                              Copy
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>

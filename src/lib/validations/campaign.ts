@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /**
  * Campaign validation schemas
- * 
+ *
  * Follows Zod best practices for type-safe validation
  */
 
@@ -26,8 +26,6 @@ export const createCampaignSchema = z
     paymentType: z.enum(['direct', 'transfer']),
     bankNameOrCode: z.string().max(100).optional().nullable(),
     accountNumber: z.string().max(50).optional().nullable(),
-    accountHolderName: z.string().max(255).optional().nullable(),
-    sepayGateway: z.string().max(255).optional().nullable(),
     status: z.enum(['active', 'drawing', 'completed', 'canceled']).optional().default('active'),
     excludeWinningNumbers: z.boolean().optional().default(true),
     prizes: z.array(prizeSchema).min(1, 'At least one prize is required'),
@@ -36,18 +34,13 @@ export const createCampaignSchema = z
     (data) => {
       // Validate payment fields based on payment type
       if (data.paymentType === 'transfer') {
-        return (
-          data.bankNameOrCode &&
-          data.accountNumber &&
-          data.accountHolderName &&
-          data.sepayGateway
-        );
+        return data.bankNameOrCode && data.accountNumber;
       }
       return true;
     },
     {
       message:
-        'Bank information (bankNameOrCode, accountNumber, accountHolderName, sepayGateway) is required for transfer payment type',
+        'Bank information (bankNameOrCode, accountNumber) is required for transfer payment type',
       path: ['paymentType'],
     }
   )
@@ -76,8 +69,6 @@ export const updateCampaignSchema = z
     paymentType: z.enum(['direct', 'transfer']).optional(),
     bankNameOrCode: z.string().max(100).optional().nullable(),
     accountNumber: z.string().max(50).optional().nullable(),
-    accountHolderName: z.string().max(255).optional().nullable(),
-    sepayGateway: z.string().max(255).optional().nullable(),
     status: z.enum(['active', 'drawing', 'completed', 'canceled']).optional(),
     excludeWinningNumbers: z.boolean().optional(),
     prizes: z.array(prizeSchema).optional(),

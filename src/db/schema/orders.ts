@@ -48,6 +48,7 @@ export const orders = pgTable(
     errorMessage: text('error_message'),
     sepayTransactionId: varchar('sepay_transaction_id', { length: 255 }),
     receivedAt: timestamp('received_at', { withTimezone: true }),
+    transactionDate: timestamp('transaction_date', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

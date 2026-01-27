@@ -1,22 +1,200 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { campaigns, orders, tickets, orderTickets } from '@/db/schema';
+import { verifyWebhookJWT } from '@/services/payment.server';
+import {
+  reconcilePayment,
+  type SepayWebhookPayload,
+} from '@/services/payment.service';
 
+/**
+ * SePay Webhook Endpoint
+ * Handles payment notifications from SePay
+ * POST /api/v1/webhooks/sepay
+ */
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  console.log('Webhook received:', body);
-  // Example body:
-  // {
-  //   gateway: 'Vietcombank',
-  //   transactionDate: '2026-01-27 08:45:29',
-  //   accountNumber: '0706213188',
-  //   subAccount: null,
-  //   code: 'LTR000001',
-  //   content: 'LTR000001',
-  //   transferType: 'in',
-  //   description: null,
-  //   transferAmount: 10000,
-  //   referenceCode: '510787.270126.084529',
-  //   accumulated: 10000,
-  //   id: 241439
-  // }
-  return new Response('Webhook received', { status: 200 });
+  try {
+    // 1. Extract JWT from Authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Apikey ')) {
+      console.error('Missing or invalid Authorization header');
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 203 },
+      );
+    }
+
+    const token = authHeader.replace('Apikey ', '');
+
+    // 2. Verify JWT and get campaign UUID
+    const decoded = verifyWebhookJWT(token);
+    if (!decoded || !decoded.sub) {
+      console.error('Invalid JWT token');
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 203 },
+      );
+    }
+
+    const campaignUuid = decoded.sub;
+
+    // 3. Find campaign by UUID (any status is acceptable)
+    const campaign = await db.query.campaigns.findFirst({
+      where: eq(campaigns.uuid, campaignUuid),
+    });
+
+    if (!campaign) {
+      console.error(`Campaign not found for UUID: ${campaignUuid}`);
+      return NextResponse.json(
+        { error: 'Campaign not found' },
+        { status: 203 },
+      );
+    }
+
+    // 4. Extract webhook payload
+    const payload: SepayWebhookPayload = await request.json();
+    console.log('Webhook payload received:', {
+      code: payload.code,
+      amount: payload.transferAmount,
+      transactionDate: payload.transactionDate,
+    });
+
+    // 5. Find order by payment reference ID
+    const order = await db.query.orders.findFirst({
+      where: eq(orders.paymentReferenceId, payload.code),
+    });
+
+    if (!order) {
+      console.error(`Order not found for reference: ${payload.code}`);
+      return NextResponse.json(
+        { error: 'Order not found' },
+        { status: 203 },
+      );
+    }
+
+    // 6. Check if already processed (idempotency)
+    if (order.paymentStatus === 'success') {
+      console.log(
+        `Order ${payload.code} already processed, returning 208`,
+      );
+      return NextResponse.json(
+        { message: 'Already processed' },
+        { status: 208 },
+      );
+    }
+
+    // 7. Reconcile transaction
+    const reconciliation = reconcilePayment(
+      payload,
+      order.totalAmount,
+      campaign.accountNumber || '',
+    );
+
+    // 8. If reconciliation fails
+    if (!reconciliation.success) {
+      console.error('Reconciliation failed:', reconciliation.errors);
+
+      await db
+        .update(orders)
+        .set({
+          paymentStatus: 'failed',
+          errorMessage: JSON.stringify({
+            ...payload,
+            reconciliationResult: reconciliation.errors,
+          }),
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, order.id));
+
+      return NextResponse.json(
+        { error: 'Reconciliation failed', details: reconciliation.errors },
+        { status: 203 },
+      );
+    }
+
+    // 9. If reconciliation succeeds and order is pending
+    if (order.paymentStatus === 'pending') {
+      // Update order status
+      await db
+        .update(orders)
+        .set({
+          paymentStatus: 'success',
+          sepayTransactionId: payload.referenceCode,
+          receivedAt: new Date(),
+          transactionDate: new Date(payload.transactionDate),
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, order.id));
+
+      // Generate and create tickets
+      const ticketNumbers = generateUniqueTicketNumbers(order.ticketsCount);
+
+      // Create tickets in database
+      const createdTickets = await db
+        .insert(tickets)
+        .values(
+          ticketNumbers.map((ticketNumber) => ({
+            campaignId: order.campaignId,
+            userId: order.userId,
+            ticketNumber,
+            isWinning: false,
+          })),
+        )
+        .returning();
+
+      // Link tickets to order via order_tickets
+      await db.insert(orderTickets).values(
+        createdTickets.map((ticket) => ({
+          orderId: order.id,
+          ticketId: ticket.id,
+        })),
+      );
+
+      console.log(
+        `Successfully processed order ${payload.code}, created ${createdTickets.length} tickets`,
+      );
+
+      // TODO: Trigger email job (Phase 7)
+      // await emailService.sendTicketEmail(order, createdTickets);
+
+      return NextResponse.json(
+        {
+          message: 'Payment processed successfully',
+          tickets: createdTickets.length,
+        },
+        { status: 200 },
+      );
+    }
+
+    // If order status is failed, should not happen but handle gracefully
+    return NextResponse.json(
+      { error: 'Order in invalid state' },
+      { status: 203 },
+    );
+  } catch (error) {
+    console.error('Webhook processing error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * Generate unique 6-digit ticket numbers
+ * This is a simple random generation - in Phase 5, this will be replaced
+ * with proper uniqueness checking against database
+ */
+function generateUniqueTicketNumbers(count: number): string[] {
+  const numbers = new Set<string>();
+
+  while (numbers.size < count) {
+    const randomNum = Math.floor(Math.random() * 1000000)
+      .toString()
+      .padStart(6, '0');
+    numbers.add(randomNum);
+  }
+
+  return Array.from(numbers);
 }

@@ -40,8 +40,7 @@ export interface CampaignWithPrizes {
   paymentType: 'direct' | 'transfer';
   bankNameOrCode: string | null;
   accountNumber: string | null;
-  accountHolderName: string | null;
-  sepayGateway: string | null;
+  webhookApiKey: string | null;
   status: 'active' | 'drawing' | 'completed' | 'canceled';
   excludeWinningNumbers: boolean;
   canceledAt: Date | null;

@@ -15,6 +15,20 @@
       "when": 1769438032233,
       "tag": "0001_clumsy_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1769490036231,
+      "tag": "0002_nifty_mathemanic",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1769524045165,
+      "tag": "0003_slippery_mephisto",
+      "breakpoints": true
     }
   ]
 }
