@@ -2,12 +2,30 @@ import { db } from '@/db';
 import {
   orders,
   orderTickets,
+  users,
   type Order,
   type NewOrder,
   type OrderTicket,
 } from '@/db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, inArray } from 'drizzle-orm';
 import { ticketService } from './ticket.service';
+import { userService } from './user.service';
+import { campaignService } from './campaign.service';
+import { emailService } from './email.service';
+
+export type OrderSortBy = 'createdAt' | 'paymentStatus' | 'userId' | 'ticketsCount';
+
+export interface ListOrdersByCampaignFilters {
+  status?: 'pending' | 'success' | 'failed';
+  page?: number;
+  limit?: number;
+  sortBy?: OrderSortBy;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface OrderWithUser extends Order {
+  user: { id: number; name: string; email: string };
+}
 
 /**
  * Order Service
@@ -261,6 +279,147 @@ export class OrderService {
     }
 
     return new Date() > new Date(order.expiresAt);
+  }
+
+  /**
+   * List orders by campaign ID with optional filters, pagination, and sort.
+   */
+  async listByCampaign(
+    campaignId: number,
+    filters: ListOrdersByCampaignFilters = {}
+  ): Promise<{ orders: OrderWithUser[]; total: number }> {
+    const {
+      status,
+      page = 1,
+      limit = 30,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+    } = filters;
+
+    const conditions = [eq(orders.campaignId, campaignId)];
+    if (status) {
+      conditions.push(eq(orders.paymentStatus, status));
+    }
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+
+    const orderByColumn =
+      sortBy === 'paymentStatus'
+        ? orders.paymentStatus
+        : sortBy === 'userId'
+          ? orders.userId
+          : sortBy === 'ticketsCount'
+            ? orders.ticketsCount
+            : orders.createdAt;
+    const orderBy = sortOrder === 'asc' ? asc(orderByColumn) : desc(orderByColumn);
+
+    const offset = (page - 1) * limit;
+
+    const rows = await db
+      .select({
+        id: orders.id,
+        uuid: orders.uuid,
+        campaignId: orders.campaignId,
+        userId: orders.userId,
+        ticketsCount: orders.ticketsCount,
+        totalAmount: orders.totalAmount,
+        paymentReferenceId: orders.paymentReferenceId,
+        expiresAt: orders.expiresAt,
+        paymentType: orders.paymentType,
+        paymentStatus: orders.paymentStatus,
+        errorMessage: orders.errorMessage,
+        sepayTransactionId: orders.sepayTransactionId,
+        receivedAt: orders.receivedAt,
+        transactionDate: orders.transactionDate,
+        createdAt: orders.createdAt,
+        updatedAt: orders.updatedAt,
+        userName: users.name,
+        userEmail: users.email,
+      })
+      .from(orders)
+      .innerJoin(users, eq(orders.userId, users.id))
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(limit)
+      .offset(offset);
+
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(orders)
+      .where(whereClause);
+
+    const total = countResult?.count ?? 0;
+
+    const ordersWithUser: OrderWithUser[] = rows.map((row) => {
+      const { userName, userEmail, ...orderFields } = row;
+      return {
+        ...orderFields,
+        user: { id: row.userId, name: userName, email: userEmail },
+      } as OrderWithUser;
+    });
+
+    return { orders: ordersWithUser, total };
+  }
+
+  /**
+   * Mark order as success manually (admin). Updates status only (no webhook fields),
+   * then creates tickets and sends email like webhook flow.
+   */
+  async markAsSuccessManually(orderId: number): Promise<Order> {
+    const order = await this.getById(orderId);
+    if (!order) {
+      throw new Error('ORDER_NOT_FOUND');
+    }
+    if (order.paymentStatus !== 'pending') {
+      throw new Error('ORDER_NOT_PENDING: Only pending orders can be marked success manually');
+    }
+
+    await db
+      .update(orders)
+      .set({
+        paymentStatus: 'success',
+        errorMessage: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId));
+
+    const createdTickets = await this.createTicketsForOrder(orderId);
+
+    const [user, campaign] = await Promise.all([
+      userService.getById(order.userId),
+      campaignService.getById(order.campaignId),
+    ]);
+    const fullTickets = await ticketService.getTicketsByOrderId(orderId);
+    if (user && campaign && fullTickets.length > 0) {
+      emailService
+        .sendTicketEmail(order, user, campaign, fullTickets)
+        .catch((err) => console.error('[OrderService] markAsSuccessManually email failed', err));
+    }
+
+    const [updated] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+    return updated!;
+  }
+
+  /**
+   * Delete a single order (cascade removes order_tickets).
+   */
+  async delete(id: number): Promise<void> {
+    await db.delete(orders).where(eq(orders.id, id));
+  }
+
+  /**
+   * Delete multiple orders by IDs.
+   */
+  async deleteMany(ids: number[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    const deleted = await db
+      .delete(orders)
+      .where(inArray(orders.id, ids))
+      .returning({ id: orders.id });
+    return deleted.length;
   }
 }
 

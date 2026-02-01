@@ -21,11 +21,12 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-export function validateEnv(): Env | undefined {
+export function validateEnv(): Env {
   try {
     return envSchema.parse(process.env);
   } catch (error) {
     console.error('❌ Invalid environment variables:', { error, env: process.env });
+    throw error;
   }
 }
 

@@ -47,6 +47,10 @@ export interface CampaignWithPrizes {
   createdAt: Date;
   updatedAt: Date;
   prizes: CampaignPrizeDTO[];
+  /** Present when listing campaigns (ticket count for this campaign) */
+  ticketsSold?: number;
+  /** Present when listing campaigns (order count for this campaign) */
+  ordersCount?: number;
 }
 
 export interface CampaignPrizeDTO {

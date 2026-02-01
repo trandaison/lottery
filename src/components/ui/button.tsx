@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
+import { Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -43,12 +44,20 @@ function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  loading = false,
+  children,
+  disabled,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
+    loading?: boolean
   }) {
   const Comp = asChild ? Slot : "button"
+
+  if (asChild && loading) {
+    console.warn("Button: loading prop is ignored when asChild is true")
+  }
 
   return (
     <Comp
@@ -56,8 +65,20 @@ function Button({
       data-variant={variant}
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
+      disabled={Comp === "button" ? disabled ?? loading : undefined}
+      aria-busy={loading || undefined}
       {...props}
-    />
+    >
+      {loading && Comp === "button" ? (
+        <>
+          <Loader2 className="animate-spin shrink-0" aria-hidden />
+          {children}
+          <span className="sr-only">Loading</span>
+        </>
+      ) : (
+        children
+      )}
+    </Comp>
   )
 }
 

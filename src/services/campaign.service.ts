@@ -7,7 +7,7 @@ import {
   type CampaignPrize,
   type NewCampaignPrize,
 } from '@/db/schema';
-import { eq, desc, asc, and, sql, count, countDistinct } from 'drizzle-orm';
+import { eq, desc, asc, and, sql, count, countDistinct, inArray } from 'drizzle-orm';
 import type { CampaignWithPrizes, CampaignStatistics } from '@/types';
 import { tickets, orders, winningNumbers } from '@/db/schema';
 import { generateWebhookJWT } from './payment.server';
@@ -415,7 +415,41 @@ export class CampaignService {
       .limit(filters?.limit || 50)
       .offset(filters?.offset || 0);
 
-    // Get prizes for each campaign
+    const campaignIds = campaignsList.map((c) => c.id);
+
+    // Ticket counts per campaign
+    const ticketCountRows =
+      campaignIds.length > 0
+        ? await db
+            .select({
+              campaignId: tickets.campaignId,
+              ticketsSold: count(),
+            })
+            .from(tickets)
+            .where(inArray(tickets.campaignId, campaignIds))
+            .groupBy(tickets.campaignId)
+        : [];
+    const ticketsByCampaign = Object.fromEntries(
+      ticketCountRows.map((r) => [r.campaignId, Number(r.ticketsSold)])
+    );
+
+    // Order counts per campaign
+    const orderCountRows =
+      campaignIds.length > 0
+        ? await db
+            .select({
+              campaignId: orders.campaignId,
+              ordersCount: count(),
+            })
+            .from(orders)
+            .where(inArray(orders.campaignId, campaignIds))
+            .groupBy(orders.campaignId)
+        : [];
+    const ordersByCampaign = Object.fromEntries(
+      orderCountRows.map((r) => [r.campaignId, Number(r.ordersCount)])
+    );
+
+    // Get prizes for each campaign and merge counts
     const campaignsWithPrizes = await Promise.all(
       campaignsList.map(async (campaign) => {
         const prizes = await db
@@ -427,6 +461,8 @@ export class CampaignService {
         return {
           ...campaign,
           prizes,
+          ticketsSold: ticketsByCampaign[campaign.id] ?? 0,
+          ordersCount: ordersByCampaign[campaign.id] ?? 0,
         };
       })
     );

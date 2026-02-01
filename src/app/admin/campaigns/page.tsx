@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Edit, Trash2, PlayCircle, ExternalLink } from 'lucide-react';
+import { Plus, Edit, Trash2, PlayCircle, ExternalLink, MoreHorizontal, Ticket, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -30,6 +30,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type { CampaignWithPrizes } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -51,13 +57,13 @@ const statusLabels: Record<CampaignStatus, string> = {
 };
 
 export default function CampaignsPage() {
-  const router = useRouter();
   const [campaigns, setCampaigns] = useState<CampaignWithPrizes[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [actionLoading, setActionLoading] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchCampaigns = async () => {
     setLoading(true);
@@ -91,27 +97,32 @@ export default function CampaignsPage() {
     fetchCampaigns();
   }, [statusFilter, searchTerm]);
 
-  const handleDeleteCampaign = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) {
-      return;
-    }
+  const openDeleteConfirm = (id: number) => setDeleteId(id);
+  const closeDeleteConfirm = () => {
+    if (!deleteLoading) setDeleteId(null);
+  };
 
+  const handleConfirmDelete = async () => {
+    if (deleteId === null) return;
+    setDeleteLoading(true);
     try {
-      const response = await fetch(`/api/v1/admin/campaigns/${id}`, {
+      const response = await fetch(`/api/v1/admin/campaigns/${deleteId}`, {
         method: 'DELETE',
       });
-
       const result = await response.json();
 
       if (result.success) {
         toast.success('Campaign deleted successfully');
+        setDeleteId(null);
         fetchCampaigns();
       } else {
-        toast.error(result.error?.message || 'Failed to delete campaign');
+        toast.error(result.error?.message ?? 'Failed to delete campaign');
       }
     } catch (error) {
       console.error('Error deleting campaign:', error);
       toast.error('Failed to delete campaign');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -136,8 +147,9 @@ export default function CampaignsPage() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
+          aria-label="Search campaigns"
         />
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={setStatusFilter} aria-label="Filter by status">
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
@@ -152,8 +164,12 @@ export default function CampaignsPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="text-muted-foreground">Loading campaigns...</div>
+        <div className="rounded-md border">
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
         </div>
       ) : campaigns.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -173,7 +189,8 @@ export default function CampaignsPage() {
                 <TableHead>Start Date</TableHead>
                 <TableHead>End Date</TableHead>
                 <TableHead>Ticket Price</TableHead>
-                <TableHead>Prizes</TableHead>
+                <TableHead className="text-right">Số Tickets</TableHead>
+                <TableHead className="text-right">Số Orders</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -200,7 +217,12 @@ export default function CampaignsPage() {
                   <TableCell>{format(new Date(campaign.startTime), 'PPp')}</TableCell>
                   <TableCell>{format(new Date(campaign.endTime), 'PPp')}</TableCell>
                   <TableCell>{campaign.ticketPrice.toLocaleString()} VND</TableCell>
-                  <TableCell>{campaign.prizes.length}</TableCell>
+                  <TableCell className="text-right">
+                    {campaign.ticketsSold ?? 0}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {campaign.ordersCount ?? 0}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       {(campaign.status === 'active' || campaign.status === 'drawing') && (
@@ -215,23 +237,45 @@ export default function CampaignsPage() {
                           </Link>
                         </Button>
                       )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        asChild
-                      >
-                        <Link href={`/admin/campaigns/${campaign.id}/edit`}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteCampaign(campaign.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="size-8"
+                            aria-label="Campaign actions"
+                          >
+                            <MoreHorizontal className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/admin/campaigns/${campaign.id}/edit`} className="flex items-center gap-2">
+                              <Edit className="size-4" />
+                              Edit
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/admin/campaigns/${campaign.id}/tickets`} className="flex items-center gap-2">
+                              <Ticket className="size-4" />
+                              Tickets
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/admin/campaigns/${campaign.id}/orders`} className="flex items-center gap-2">
+                              <ShoppingBag className="size-4" />
+                              Orders
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onSelect={() => openDeleteConfirm(campaign.id)}
+                          >
+                            <Trash2 className="size-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -244,6 +288,33 @@ export default function CampaignsPage() {
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div>Showing {campaigns.length} of {total} campaigns</div>
       </div>
+
+      <Dialog open={deleteId !== null} onOpenChange={(open) => !open && closeDeleteConfirm()}>
+        <DialogContent
+          aria-describedby="delete-campaign-description"
+          aria-labelledby="delete-campaign-title"
+        >
+          <DialogHeader>
+            <DialogTitle id="delete-campaign-title">Delete campaign</DialogTitle>
+            <DialogDescription id="delete-campaign-description">
+              Are you sure you want to delete this campaign? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteConfirm} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              loading={deleteLoading}
+              disabled={deleteLoading}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

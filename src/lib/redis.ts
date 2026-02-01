@@ -4,6 +4,9 @@ import { env } from '@/config/env';
 let redis: Redis;
 
 if (typeof window === 'undefined') {
+  if (!env) {
+    throw new Error('Environment variables not validated. Call validateEnv() before using redis.');
+  }
   // Only create Redis client on server-side
   redis = new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: 3,

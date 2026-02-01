@@ -270,7 +270,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           success: false,
           error: {
             code: 'VALIDATION_ERROR',
-            message: error.errors.map((e) => e.message).join(', '),
+            message: error.issues.map((e) => e.message).join(', '),
           },
         },
         { status: 400 }

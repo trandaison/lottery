@@ -104,7 +104,8 @@ export function PurchaseForm({ campaignSlug, ticketPrice }: PurchaseFormProps) {
       }
 
       // Get payment reference ID from response
-      const paymentReferenceId = result.data?.order?.paymentReferenceId;
+      const responseData = result.data as { order?: { paymentReferenceId?: string } } | undefined;
+      const paymentReferenceId = responseData?.order?.paymentReferenceId;
 
       if (!paymentReferenceId) {
         toast.error('Không nhận được mã đơn hàng');
