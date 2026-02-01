@@ -169,7 +169,50 @@ export interface DrawRequest {
 }
 
 export interface DrawResponse {
+  draftMode: boolean;
   winningNumber: string;
-  matchingTickets: TicketDTO[];
+  matchingDigits: number;
   savedWinningNumber?: WinningNumberDTO;
+  winners: Array<{
+    userId: number;
+    userUuid: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    tickets: Array<{
+      id: number;
+      uuid: string;
+      ticketNumber: string;
+      isWinning?: boolean;
+    }>;
+  }>;
+}
+
+export interface PrizeWithDrawStatus {
+  id: number;
+  uuid: string;
+  campaignId: number;
+  title: string;
+  prizesCount: number;
+  matchingDigits: number;
+  prizeValue: number;
+  createdAt: Date;
+  updatedAt: Date;
+  drawStatus: 'not_drawn' | 'drawn' | 'completed';
+  winningNumbers: Array<{
+    id: number;
+    uuid: string;
+    campaignPrizeId: number;
+    number: string;
+    createdAt: Date;
+    updatedAt: Date;
+    winners?: Array<{
+      userId: number;
+      userUuid: string;
+      name: string;
+      email: string;
+      phone: string | null;
+      ticketNumbers: string[];
+    }>;
+  }>;
 }

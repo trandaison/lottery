@@ -1,0 +1,23 @@
+id,uuid,title,slug,description,start_time,end_time,ticket_price,payment_type,bank_name_or_code,account_number,status,exclude_winning_numbers,canceled_at,created_at,updated_at,webhook_api_key
+1,ce2ba5d2-ed55-4c62-9491-5775486d707a,Sample Campaign 1,sample-campaign-1,This is a sample campaign for testing purposes.,2026-01-27 21:36:52.97+07,2026-02-02 21:36:52.97+07,10000,direct,,,active,True,NULL,2026-01-26 21:36:52.971724+07,2026-01-26 23:29:15.195+07,NULL
+4,a67b68be-9089-45a3-a823-7c4db03ae59f,Campaign Đang Diễn Ra,active-ongoing,"# Campaign Đang Diễn Ra
+
+Đây là campaign đang trong thời gian mua vé. Bạn có thể mua vé ngay bây giờ!
+
+## Thông tin chi tiết
+
+- **Thời gian**: Đang diễn ra
+- **Trạng thái**: Active
+- **Form mua vé**: Hiển thị
+
+## Cách tham gia
+
+1. Chọn số lượng vé muốn mua
+2. Điền thông tin cá nhân
+3. Thanh toán và nhận vé",2026-01-25 23:39:12.925+07,2026-01-31 23:39:12.925+07,20000,direct,NULL,NULL,active,True,NULL,2026-01-26 23:39:12.948928+07,2026-01-26 23:39:12.948928+07,NULL
+5,2384801a-a017-4fe9-ada2-0b30775cfb45,Campaign Chưa Bắt Đầu,active-not-started,Campaign này sẽ bắt đầu trong tương lai. Vui lòng chờ countdown!,2026-01-28 23:39:12.925+07,2026-02-02 23:39:12.925+07,20000,direct,NULL,NULL,active,True,NULL,2026-01-26 23:39:12.968798+07,2026-01-26 23:39:12.968798+07,NULL
+6,6f149025-8b9d-426d-8d66-596479a1009d,Campaign Đã Kết Thúc Mua Vé,active-ended,Campaign này đã kết thúc thời gian mua vé.,2026-01-19 23:39:12.925+07,2026-01-26 22:39:12.925+07,20000,direct,NULL,NULL,active,True,NULL,2026-01-26 23:39:12.97126+07,2026-01-26 23:39:12.97126+07,NULL
+7,a3c6ca7a-7a40-47e2-bb94-d603659b33cd,Campaign Đang Quay Số,drawing-campaign,Campaign này đang trong quá trình quay số. Vui lòng theo dõi kết quả!,2026-01-19 23:39:12.925+07,2026-01-25 23:39:12.925+07,20000,direct,NULL,NULL,drawing,True,NULL,2026-01-26 23:39:12.973147+07,2026-01-26 23:39:12.973147+07,NULL
+8,ea54ac2b-6664-4996-8a74-4fcc6726a87d,Campaign Đã Hoàn Thành,completed-campaign,Campaign này đã hoàn thành và công bố kết quả.,2026-01-12 23:39:12.925+07,2026-01-19 23:39:12.925+07,20000,direct,NULL,NULL,completed,True,NULL,2026-01-26 23:39:12.97612+07,2026-01-26 23:39:12.97612+07,NULL
+9,5e35b42b-99ff-49e4-8a66-4f22fffce1a0,Campaign Đã Bị Hủy,canceled-campaign,Campaign này đã bị hủy bởi admin.,2026-01-25 23:39:12.925+07,2026-01-31 23:39:12.925+07,20000,direct,NULL,NULL,canceled,True,2026-01-26 22:39:12.925+07,2026-01-26 23:39:12.977825+07,2026-01-26 23:39:12.977825+07,NULL
+3,a2d0b99f-459e-4210-843f-63a7a82d2a4b,Sample Campaign,sample-campaign,This is a sample campaign for testing purposes.,2026-01-27 00:00:00+07,2026-02-02 23:38:28.144+07,10000,transfer,Vietcombank,0706213188,active,True,NULL,2026-01-26 23:38:28.146024+07,2026-01-27 22:14:29.695+07,eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMmQwYjk5Zi00NTllLTQyMTAtODQzZi02M2E3YTgyZDJhNGIiLCJpYXQiOjE3Njk1MjYxNDF9.KdQ9y1F1McoGK_tQX3G8Tc1SkSM-5rvYwW9yy6ltUPI

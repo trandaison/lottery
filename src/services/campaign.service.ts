@@ -9,7 +9,7 @@ import {
 } from '@/db/schema';
 import { eq, desc, asc, and, sql, count, countDistinct } from 'drizzle-orm';
 import type { CampaignWithPrizes, CampaignStatistics } from '@/types';
-import { tickets, orders } from '@/db/schema';
+import { tickets, orders, winningNumbers } from '@/db/schema';
 import { generateWebhookJWT } from './payment.server';
 
 /**
@@ -273,9 +273,19 @@ export class CampaignService {
     }
 
     // Check if all prizes have winning numbers
-    const prizesWithoutWinners = campaign.prizes.filter((p) => !p.winningNumber);
-    if (prizesWithoutWinners.length > 0) {
-      throw new Error('INCOMPLETE_DRAW: All prizes must have winning numbers before completion');
+    // Each prize must have at least prizesCount winning numbers
+    for (const prize of campaign.prizes) {
+      const winningNumbersCount = await db
+        .select({ count: count() })
+        .from(winningNumbers)
+        .where(eq(winningNumbers.campaignPrizeId, prize.id));
+
+      const countValue = winningNumbersCount[0]?.count || 0;
+      if (countValue < prize.prizesCount) {
+        throw new Error(
+          `INCOMPLETE_DRAW: Prize "${prize.title}" requires ${prize.prizesCount} winning number(s), but only ${countValue} found`
+        );
+      }
     }
 
     return await db.transaction(async (tx) => {

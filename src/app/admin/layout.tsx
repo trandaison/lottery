@@ -16,6 +16,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return <>{children}</>;
   }
 
+  // Show draw page without sidebar (full-screen layout)
+  if (pathname?.includes('/admin/campaigns/') && pathname?.includes('/draw')) {
+    return <>{children}</>;
+  }
+
+  // Show draw page without sidebar (full-screen layout)
+  if (pathname?.includes('/admin/campaigns/') && pathname?.includes('/draw')) {
+    return <>{children}</>;
+  }
+
   // Show loading state while checking auth
   if (isLoading) {
     return (
@@ -76,7 +86,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Main Content */}
       <main className="flex-1">
-        <div className="mx-auto max-w-7xl py-8 px-6">{children}</div>
+        <div className="mx-auto py-8 px-6">{children}</div>
       </main>
     </div>
   );

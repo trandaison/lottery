@@ -167,6 +167,7 @@ export default function CampaignsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>ID</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Start Date</TableHead>
@@ -179,6 +180,7 @@ export default function CampaignsPage() {
             <TableBody>
               {campaigns.map((campaign) => (
                 <TableRow key={campaign.id}>
+                  <TableCell>{campaign.id}</TableCell>
                   <TableCell className="font-medium">
                     <a
                       href={`/campaigns/${campaign.slug}`}

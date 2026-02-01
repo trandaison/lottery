@@ -1,0 +1,4 @@
+id,uuid,name,email,password_digest,phone,status,role,created_at,updated_at
+1,66b652a6-2df2-4429-adb5-c857d66062ea,Admin User,admin@company.com,$2b$10$ez1ytfZ3vlKHN/JRW8NWSuNv0fplM42l00ndkPdEEPXQZQJNoOV.C,0901234567,active,admin,2026-01-26 21:36:52.961948+07,2026-01-26 21:36:52.961948+07
+2,127a1d08-3262-42e8-b92b-841bc444d037,Trần Đại Sơn,sontd@mynavitechtus.com,NULL,0706213188,active,user,2026-01-27 21:45:53.634194+07,2026-01-27 21:45:53.634194+07
+3,66d5ac46-db3c-40d6-b107-c1031ff1bf09,Sơn,boyz.ds@gmail.com,NULL,0706213188,active,user,2026-01-27 23:38:17.66585+07,2026-01-27 23:38:17.66585+07

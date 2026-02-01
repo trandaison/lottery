@@ -50,12 +50,12 @@ export class TicketImageService {
 
       // Draw ticket number
       // Font: Arial, size 46, line height 1
-      // Position: (252, 46)
+      // Position: (252, 186)
       ctx.font = '46px Arial';
       ctx.fillStyle = '#000000'; // Black text
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.fillText(ticket.ticketNumber, 252, 46);
+      ctx.fillText(ticket.ticketNumber, 252, 186);
 
       // Export as PNG buffer
       return canvas.toBuffer('image/png');
