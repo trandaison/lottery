@@ -41,6 +41,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '30', 10) || 30));
     const status = searchParams.get('status') as 'pending' | 'success' | 'failed' | null;
+    const search = searchParams.get('search')?.trim() ?? '';
     const sortBy = (SORT_BY.includes(searchParams.get('sortBy') as (typeof SORT_BY)[number])
       ? searchParams.get('sortBy')
       : 'createdAt') as (typeof SORT_BY)[number];
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       sortBy,
       sortOrder,
       ...(status && { status }),
+      ...(search.length > 0 && { search }),
     };
 
     const { orders: ordersList, total } = await orderService.listByCampaign(campaignId, filters);

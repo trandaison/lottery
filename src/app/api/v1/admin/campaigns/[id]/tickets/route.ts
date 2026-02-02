@@ -48,12 +48,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') ?? '100', 10) || 100));
+    const search = searchParams.get('search')?.trim() ?? '';
     const sortBy = (SORT_BY.includes(searchParams.get('sortBy') as (typeof SORT_BY)[number])
       ? searchParams.get('sortBy')
       : 'createdAt') as (typeof SORT_BY)[number];
     const sortOrder = (SORT_ORDER.includes(searchParams.get('sortOrder') as (typeof SORT_ORDER)[number])
       ? searchParams.get('sortOrder')
       : 'desc') as (typeof SORT_ORDER)[number];
+
+    const whereConditions = [eq(tickets.campaignId, campaignId)];
+    if (search.length > 0) {
+      whereConditions.push(sql`${tickets.ticketNumber} ILIKE ${'%' + search + '%'}`);
+    }
+    const whereClause =
+      whereConditions.length === 1 ? whereConditions[0] : and(...whereConditions);
 
     const orderByColumn =
       sortBy === 'status'
@@ -79,7 +87,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       })
       .from(tickets)
       .innerJoin(users, eq(tickets.userId, users.id))
-      .where(eq(tickets.campaignId, campaignId))
+      .where(whereClause)
       .orderBy(orderBy)
       .limit(limit)
       .offset(offset);
@@ -87,7 +95,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const [countResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(tickets)
-      .where(eq(tickets.campaignId, campaignId));
+      .where(whereClause);
     const total = countResult?.count ?? 0;
 
     // Winning numbers for this campaign (number -> prize title)

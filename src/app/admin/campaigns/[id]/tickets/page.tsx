@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -24,6 +25,8 @@ import {
 } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useDebounce } from '@/lib/hooks/useDebounce';
+import { highlightMatch } from '@/lib/utils/highlight-match';
 
 interface TicketRow {
   id: number;
@@ -48,10 +51,16 @@ export default function CampaignTicketsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [sortBy, setSortBy] = useState<string>('createdAt');
   const [sortOrder, setSortOrder] = useState<string>('desc');
 
   const limit = 100;
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   const fetchTickets = useCallback(async () => {
     if (Number.isNaN(campaignId)) return;
@@ -62,6 +71,7 @@ export default function CampaignTicketsPage() {
       q.set('limit', String(limit));
       q.set('sortBy', sortBy);
       q.set('sortOrder', sortOrder);
+      if (debouncedSearch.trim()) q.set('search', debouncedSearch.trim());
       const res = await fetch(`/api/v1/admin/campaigns/${campaignId}/tickets?${q.toString()}`);
       const data = await res.json();
       if (data.success) {
@@ -76,7 +86,7 @@ export default function CampaignTicketsPage() {
     } finally {
       setLoading(false);
     }
-  }, [campaignId, page, sortBy, sortOrder]);
+  }, [campaignId, page, debouncedSearch, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchTickets();
@@ -102,6 +112,14 @@ export default function CampaignTicketsPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
+        <Input
+          placeholder="Tìm số vé (chứa)..."
+          type="search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="max-w-[220px]"
+          aria-label="Tìm số vé"
+        />
         <span className="text-sm text-muted-foreground">Sắp xếp:</span>
         <Select
           value={sortBy}
@@ -170,7 +188,9 @@ export default function CampaignTicketsPage() {
                   <TableCell className="text-muted-foreground">
                     {(page - 1) * limit + idx + 1}
                   </TableCell>
-                  <TableCell className="font-mono font-medium">{ticket.ticketNumber}</TableCell>
+                  <TableCell className="font-mono font-medium">
+                    {highlightMatch(ticket.ticketNumber, debouncedSearch)}
+                  </TableCell>
                   <TableCell>
                     <div>
                       <div className="font-medium">{ticket.user.name}</div>

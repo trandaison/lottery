@@ -13,7 +13,9 @@ interface RouteContext {
 
 /**
  * POST /api/v1/admin/campaigns/[id]/draw
- * Draw a winning number for a prize (query-first approach)
+ * Draw a winning number for a prize.
+ * - Client submits winning number suffix (no leading zeros, e.g. "16747" not "016747").
+ * - Server verifies suffix is in candidate list, finds matching tickets by RIGHT(ticket_number, N) = winningNumber, returns winners list (double-check server-side).
  */
 export async function POST(request: NextRequest, context: RouteContext) {
   try {

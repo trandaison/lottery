@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -37,6 +38,8 @@ import {
 } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useDebounce } from '@/lib/hooks/useDebounce';
+import { highlightMatch } from '@/lib/utils/highlight-match';
 
 type PaymentStatus = 'pending' | 'success' | 'failed';
 
@@ -68,6 +71,8 @@ export default function CampaignOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [sortBy, setSortBy] = useState<string>('createdAt');
   const [sortOrder, setSortOrder] = useState<string>('desc');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -82,6 +87,10 @@ export default function CampaignOrdersPage() {
 
   const limit = 30;
 
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
   const fetchOrders = useCallback(async () => {
     if (Number.isNaN(campaignId)) return;
     setLoading(true);
@@ -92,6 +101,7 @@ export default function CampaignOrdersPage() {
       q.set('sortBy', sortBy);
       q.set('sortOrder', sortOrder);
       if (statusFilter !== 'all') q.set('status', statusFilter);
+      if (debouncedSearch.trim()) q.set('search', debouncedSearch.trim());
       const res = await fetch(`/api/v1/admin/campaigns/${campaignId}/orders?${q.toString()}`);
       const data = await res.json();
       if (data.success) {
@@ -106,7 +116,7 @@ export default function CampaignOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [campaignId, page, statusFilter, sortBy, sortOrder]);
+  }, [campaignId, page, statusFilter, debouncedSearch, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchOrders();
@@ -236,6 +246,13 @@ export default function CampaignOrdersPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
+        <Input
+          placeholder="Tìm mã đơn (paymentReferenceId)..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="max-w-[260px]"
+          aria-label="Tìm mã đơn"
+        />
         <Select
           value={statusFilter}
           onValueChange={(v) => {
@@ -325,7 +342,9 @@ export default function CampaignOrdersPage() {
                   <TableCell className="text-muted-foreground">
                     {(page - 1) * limit + idx + 1}
                   </TableCell>
-                  <TableCell className="font-mono text-sm">{order.paymentReferenceId}</TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {highlightMatch(order.paymentReferenceId, debouncedSearch)}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Select

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { use } from 'react';
 import { toast } from 'sonner';
@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { DrawWheel } from '@/components/admin/DrawWheel';
+import { DrawWheelGroup } from '@/components/admin/DrawWheelGroup';
 import { ResultsTable } from '@/components/admin/ResultsTable';
 import { WinnerPopup } from '@/components/admin/WinnerPopup';
 import { useAuth } from '@/lib/context/AuthContext';
@@ -60,6 +60,9 @@ export default function DrawCampaignPage({ params }: PageProps) {
   const [showRedoDialog, setShowRedoDialog] = useState(false);
   const [redoWinningNumberId, setRedoWinningNumberId] = useState<number | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showAlreadyWonDialog, setShowAlreadyWonDialog] = useState(false);
+  const [alreadyWonNumber, setAlreadyWonNumber] = useState<string | null>(null);
+  const [alreadyWonPrizeTitle, setAlreadyWonPrizeTitle] = useState<string | null>(null);
 
   // Fetch prizes data
   const fetchPrizes = useCallback(async () => {
@@ -86,6 +89,19 @@ export default function DrawCampaignPage({ params }: PageProps) {
   useEffect(() => {
     fetchPrizes();
   }, [fetchPrizes]);
+
+  /** Winning number strings (pad to 6 chars) for excludeWinningNumbers logic. */
+  const winningNumberSuffixes = useMemo(() => {
+    const list: string[] = [];
+    for (const prize of prizes) {
+      for (const wn of prize.winningNumbers) {
+        if (wn.number != null && wn.number !== '') {
+          list.push(wn.number.padStart(6, '0').slice(-6));
+        }
+      }
+    }
+    return list;
+  }, [prizes]);
 
   // Check campaign status and draw conditions
   const campaignStatus = campaign?.status;
@@ -166,19 +182,37 @@ export default function DrawCampaignPage({ params }: PageProps) {
     }
   };
 
-  // When user clicks "Dừng" on DrawWheel: submit winning number and show popup
+  // When all wheels stop: if excludeWinningNumbers, check if number already won; then submit or show "đã trúng giải trước"
   const handleWheelStop = async (winningNumber: string) => {
     if (currentDrawingPrizeId == null) return;
 
+    // Số gốc không pad zero (16747 chứ không 016747) để server match suffix đúng
+    const winningNumberRaw = winningNumber.replace(/^0+/, '') || '0';
+    const number6 = winningNumber.padStart(6, '0').slice(-6);
+
     setIsSubmittingDraw(true);
     try {
+      if (campaign?.excludeWinningNumbers) {
+        const checkRes = await fetch(
+          `/api/v1/admin/campaigns/${campaignId}/draw/check-winning?number=${encodeURIComponent(number6)}`
+        );
+        const checkResult = await checkRes.json();
+        if (checkResult.success && checkResult.data?.alreadyWon && checkResult.data.prize) {
+          setAlreadyWonNumber(number6);
+          setAlreadyWonPrizeTitle(checkResult.data.prize.title);
+          setShowAlreadyWonDialog(true);
+          return;
+        }
+      }
+
+      // Submit số gốc (không padding) — server verify và trả về danh sách vé trúng
       const response = await fetch(`/api/v1/admin/campaigns/${campaignId}/draw`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prizeId: currentDrawingPrizeId,
           draftMode,
-          winningNumber,
+          winningNumber: winningNumberRaw,
         }),
       });
 
@@ -345,10 +379,12 @@ export default function DrawCampaignPage({ params }: PageProps) {
           <div className="flex flex-col items-center justify-center">
             <h2 className="mb-4 text-2xl font-bold">Máy quay số</h2>
             {shuffledNumbers ? (
-              <DrawWheel
+              <DrawWheelGroup
                 numbers={shuffledNumbers}
                 matchingDigits={currentMatchingDigits}
-                onStop={handleWheelStop}
+                excludeWinningNumbers={campaign?.excludeWinningNumbers ?? false}
+                winningNumberSuffixes={winningNumberSuffixes}
+                onComplete={handleWheelStop}
                 disabled={isSubmittingDraw}
               />
             ) : (
@@ -469,6 +505,31 @@ export default function DrawCampaignPage({ params }: PageProps) {
             </Button>
             <Button onClick={confirmRedo} disabled={isUpdating} variant="destructive">
               {isUpdating ? 'Đang xử lý...' : 'Xác nhận xóa'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Already won (excludeWinningNumbers): số đã trúng giải trước, quay lại */}
+      <Dialog open={showAlreadyWonDialog} onOpenChange={setShowAlreadyWonDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Số đã trúng giải trước</DialogTitle>
+            <DialogDescription>
+              Số vé <span className="font-mono font-semibold">{alreadyWonNumber ?? '—'}</span> đã
+              trúng giải <span className="font-semibold">{alreadyWonPrizeTitle ?? '—'}</span>. Vui
+              lòng quay số lại để chọn số khác.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowAlreadyWonDialog(false);
+                setAlreadyWonNumber(null);
+                setAlreadyWonPrizeTitle(null);
+              }}
+            >
+              Đóng (quay số lại)
             </Button>
           </DialogFooter>
         </DialogContent>

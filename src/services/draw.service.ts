@@ -286,6 +286,37 @@ export class DrawService {
   }
 
   /**
+   * Check if a ticket number (6-digit) has already won any prize in this campaign.
+   * Used when excludeWinningNumbers is true: after draw, check before saving; if already won, show popup and re-draw.
+   *
+   * @param campaignId - Campaign ID
+   * @param ticketNumber6 - Full ticket number (6 digits; will be normalized with padStart)
+   * @returns { alreadyWon: true, prize: { id, title } } if the number matches any winning number suffix of any prize; { alreadyWon: false } otherwise
+   */
+  async checkTicketAlreadyWon(
+    campaignId: number,
+    ticketNumber6: string
+  ): Promise<
+    | { alreadyWon: true; prize: { id: number; title: string } }
+    | { alreadyWon: false }
+  > {
+    const normalized = ticketNumber6.padStart(6, '0').slice(-6);
+    const prizesWithWinning = await this.getPrizesWithDrawStatus(campaignId);
+
+    for (const prize of prizesWithWinning) {
+      for (const wn of prize.winningNumbers) {
+        const suffixLen = prize.matchingDigits;
+        const ticketSuffix = normalized.slice(-suffixLen);
+        const wnSuffix = wn.number.padStart(suffixLen, '0').slice(-suffixLen);
+        if (ticketSuffix === wnSuffix) {
+          return { alreadyWon: true, prize: { id: prize.id, title: prize.title } };
+        }
+      }
+    }
+    return { alreadyWon: false };
+  }
+
+  /**
    * Get winning number by ID
    *
    * @param winningNumberId - Winning number ID

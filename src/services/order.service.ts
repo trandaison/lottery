@@ -7,7 +7,7 @@ import {
   type NewOrder,
   type OrderTicket,
 } from '@/db/schema';
-import { eq, and, desc, asc, sql, inArray } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, inArray, ilike } from 'drizzle-orm';
 import { ticketService } from './ticket.service';
 import { userService } from './user.service';
 import { campaignService } from './campaign.service';
@@ -17,6 +17,7 @@ export type OrderSortBy = 'createdAt' | 'paymentStatus' | 'userId' | 'ticketsCou
 
 export interface ListOrdersByCampaignFilters {
   status?: 'pending' | 'success' | 'failed';
+  search?: string; // paymentReferenceId contains (ILIKE)
   page?: number;
   limit?: number;
   sortBy?: OrderSortBy;
@@ -290,6 +291,7 @@ export class OrderService {
   ): Promise<{ orders: OrderWithUser[]; total: number }> {
     const {
       status,
+      search,
       page = 1,
       limit = 30,
       sortBy = 'createdAt',
@@ -299,6 +301,9 @@ export class OrderService {
     const conditions = [eq(orders.campaignId, campaignId)];
     if (status) {
       conditions.push(eq(orders.paymentStatus, status));
+    }
+    if (search && search.trim().length > 0) {
+      conditions.push(ilike(orders.paymentReferenceId, '%' + search.trim() + '%'));
     }
     const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
 
