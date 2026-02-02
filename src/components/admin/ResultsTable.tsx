@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RotateCcw, Play, ChevronDown, ChevronUp } from 'lucide-react';
+import { RotateCcw, Play, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import type { PrizeWithDrawStatus } from '@/types';
 
 interface ResultsTableProps {
@@ -58,39 +58,72 @@ export function ResultsTable({
   };
 
   const renderWinningNumberDisplay = (prize: PrizeWithDrawStatus) => {
-    if (isDrawing && currentDrawingPrizeId === prize.id) {
-      // Show loading spinner during draw
-      return (
-        <div className="flex items-center gap-2">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-          <span className="text-muted-foreground">Đang quay...</span>
-        </div>
-      );
-    }
+    const slotCount = prize.prizesCount;
+    const placeholder = '_'.repeat(prize.matchingDigits);
+    const canDraw = prize.drawStatus !== 'completed';
+    const isCurrentDrawing = isDrawing && currentDrawingPrizeId === prize.id;
 
-    if (prize.winningNumbers.length === 0) {
-      // Show placeholder with underscores matching matchingDigits
-      const placeholder = '_'.repeat(prize.matchingDigits);
-      return (
-        <span className="font-mono text-2xl font-bold text-gray-400">{placeholder}</span>
-      );
-    }
-
-    // Show winning numbers
-    return (
-      <div className="flex flex-wrap gap-2">
-        {prize.winningNumbers.map((wn) => {
-          // Pad number to matchingDigits for display
-          const displayNumber = wn.number.padStart(prize.matchingDigits, '0');
-          return (
-            <span
-              key={wn.id}
-              className="rounded-lg bg-blue-100 px-3 py-1 font-mono text-xl font-bold text-blue-900"
+    // Slots: placeholder or winning number badge (with redo icon inside)
+    const slots = Array.from({ length: slotCount }, (_, index) => {
+      const wn = prize.winningNumbers[index];
+      if (wn) {
+        const displayNumber = wn.number.padStart(prize.matchingDigits, '0');
+        return (
+          <span
+            key={wn.id}
+            className="inline-flex items-center gap-1 rounded-lg bg-blue-100 px-3 py-1 font-mono text-xl font-bold text-blue-900"
+          >
+            {displayNumber}
+            <button
+              type="button"
+              onClick={() => onRedo(wn.id)}
+              disabled={isDrawing}
+              className="rounded p-0.5 hover:bg-blue-200 disabled:opacity-50"
+              title="Quay lại"
+              aria-label="Quay lại"
             >
-              {displayNumber}
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          </span>
+        );
+      }
+      return (
+        <span
+          key={`slot-${prize.id}-${index}`}
+          className="font-mono text-2xl font-bold text-gray-400 px-3"
+        >
+          {placeholder}
+        </span>
+      );
+    });
+
+    return (
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {isCurrentDrawing ? (
+          <>
+            {slots}
+            <span className="flex h-9 w-9 items-center justify-center rounded-md border bg-muted/50">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </span>
-          );
-        })}
+          </>
+        ) : (
+          <>
+            {slots}
+            {canDraw && (
+              <Button
+                size="icon"
+                variant="default"
+                className="h-9 w-9 shrink-0"
+                onClick={() => onDraw(prize.id)}
+                disabled={isDrawing}
+                title="Quay giải"
+                aria-label="Quay giải"
+              >
+                <Play className="h-5 w-5" />
+              </Button>
+            )}
+          </>
+        )}
       </div>
     );
   };
@@ -102,72 +135,40 @@ export function ResultsTable({
           <tbody>
             {prizes.map((prize) => {
               const isExpanded = expandedRows.has(prize.id);
-              const canDraw = prize.drawStatus !== 'completed';
               const hasWinningNumbers = prize.winningNumbers.length > 0;
-              const isCurrentDrawing = isDrawing && currentDrawingPrizeId === prize.id;
 
               return (
                 <>
                   <tr key={prize.id} className="border-b hover:bg-muted/50">
-                    <td className="px-4 py-3">
-                      <div className="inline-flex items-baseline gap-2 font-medium">
+                    <td className="w-56 px-4 py-3 w-1/2">
+                      <div className="inline-flex items-center gap-2 font-medium">
                         {prize.title} <Badge variant="outline">{prize.prizesCount} Giải</Badge>
+                        {hasWinningNumbers && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => toggleRow(prize.id)}
+                            aria-label={isExpanded ? 'Thu gọn' : 'Xem người trúng'}
+                          >
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground mt-1">
                         {prize.prizeValue.toLocaleString('vi-VN')} VNĐ/Giải
                       </div>
                     </td>
-                    <td className="px-4 py-3">{renderWinningNumberDisplay(prize)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-2">
-                        {canDraw && (
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => onDraw(prize.id)}
-                            disabled={isDrawing}
-                          >
-                            <Play className="mr-1 h-4 w-4" />
-                            Quay giải
-                          </Button>
-                        )}
-                        {hasWinningNumbers && !isCurrentDrawing && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                // Redo the most recent winning number
-                                const latestWinningNumber = prize.winningNumbers[prize.winningNumbers.length - 1];
-                                if (latestWinningNumber) {
-                                  onRedo(latestWinningNumber.id);
-                                }
-                              }}
-                              disabled={isDrawing}
-                            >
-                              <RotateCcw className="mr-1 h-4 w-4" />
-                              Redo
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => toggleRow(prize.id)}
-                            >
-                              {isExpanded ? (
-                                <ChevronUp className="h-4 w-4" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </td>
+                    <td className="px-4 py-3 text-center">{renderWinningNumberDisplay(prize)}</td>
                   </tr>
                   {/* Expanded row showing winners */}
                   {isExpanded && hasWinningNumbers && (
                     <tr key={`${prize.id}-expanded`}>
-                      <td colSpan={6} className="px-4 py-4 bg-muted/30">
+                      <td colSpan={2} className="px-4 py-4 bg-muted/30">
                         <div className="space-y-3">
                           {prize.winningNumbers.map((wn) => (
                             <div key={wn.id} className="rounded-lg border bg-background p-4">

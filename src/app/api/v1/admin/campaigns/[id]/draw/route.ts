@@ -14,8 +14,8 @@ interface RouteContext {
 /**
  * POST /api/v1/admin/campaigns/[id]/draw
  * Draw a winning number for a prize.
- * - Client submits winning number suffix (no leading zeros, e.g. "16747" not "016747").
- * - Server verifies suffix is in candidate list, finds matching tickets by RIGHT(ticket_number, N) = winningNumber, returns winners list (double-check server-side).
+ * - Client submits winning number suffix padded to matchingDigits (e.g. "0800" for match-4).
+ * - Server normalizes to matchingDigits length, verifies in candidate list, finds tickets by RIGHT(ticket_number, N) = winningNumber.
  */
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
@@ -82,12 +82,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Use client-provided winning number (from stop) or query randomly
     let winningNumber: string;
     if (validatedData.winningNumber != null && validatedData.winningNumber !== '') {
+      // Normalize to matchingDigits (RIGHT() keeps leading zeros, so candidate list is padded)
+      const normalized = validatedData.winningNumber
+        .padStart(prize.matchingDigits, '0')
+        .slice(-prize.matchingDigits);
       const candidates = await drawService.getCandidateNumbers(
         campaignId,
         prize.matchingDigits,
         campaign.excludeWinningNumbers
       );
-      if (!candidates.includes(validatedData.winningNumber)) {
+      if (!candidates.includes(normalized)) {
         return NextResponse.json<ApiResponse>(
           {
             success: false,
@@ -99,7 +103,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           { status: 400 }
         );
       }
-      winningNumber = validatedData.winningNumber;
+      winningNumber = normalized;
     } else {
       winningNumber = await drawService.queryWinningNumber(
         campaignId,

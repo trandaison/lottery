@@ -357,16 +357,16 @@ export function DrawWheelGroup({
         </div>
       </div>
 
-      <p className="text-sm text-muted-foreground text-center max-w-md flex items-center gap-1">
-        <LightbulbIcon className="h-4 w-4" /> Nhấn Space để quay số hoặc dừng quay.
-      </p>
-
       {/* Debug: 6 mảng cột + mảng cột đang quay */}
       <div className="mt-6 w-full max-w-2xl rounded-lg border border-amber-200 bg-amber-50/80 p-4 font-mono text-xs">
         <div className="border-amber-200 text-amber-700">
           &quot;{suffixSoFar.padStart(matchingDigits, '*')}&quot;: {filteredCandidates.length} số
         </div>
       </div>
+
+      <p className="text-sm text-muted-foreground text-center max-w-md flex items-center gap-1 mt-4">
+        <LightbulbIcon className="h-4 w-4" /> Nhấn Space để quay số hoặc dừng quay.
+      </p>
     </div>
   );
 }

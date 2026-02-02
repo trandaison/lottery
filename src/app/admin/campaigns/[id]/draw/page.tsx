@@ -181,7 +181,7 @@ export default function DrawCampaignPage({ params }: PageProps) {
     campaignStatus === 'active' && prizes.some((p) => p.drawStatus === 'not_drawn');
   const allPrizesCompleted =
     prizes.length > 0 && prizes.every((p) => p.drawStatus === 'completed');
-  const canCompleteDraw = campaignStatus === 'drawing' && allPrizesCompleted;
+  const canCompleteDraw = allPrizesCompleted;
 
   // Handle start draw
   const handleStartDraw = async () => {
@@ -258,8 +258,8 @@ export default function DrawCampaignPage({ params }: PageProps) {
   const handleWheelStop = async (winningNumber: string) => {
     if (currentDrawingPrizeId == null) return;
 
-    // Số gốc không pad zero (16747 chứ không 016747) để server match suffix đúng
-    const winningNumberRaw = winningNumber.replace(/^0+/, '') || '0';
+    // Pad to matchingDigits để khớp với candidate list server (RIGHT(ticket_number, N) trả về có leading zero)
+    const winningNumberPadded = winningNumber.padStart(currentMatchingDigits, '0');
     const number6 = winningNumber.padStart(6, '0').slice(-6);
 
     setIsSubmittingDraw(true);
@@ -278,14 +278,14 @@ export default function DrawCampaignPage({ params }: PageProps) {
         }
       }
 
-      // Submit số gốc (không padding) — server verify và trả về danh sách vé trúng
+      // Submit số đã pad đủ matchingDigits để server so sánh đúng với candidate list (RIGHT() giữ leading zero)
       const response = await fetch(`/api/v1/admin/campaigns/${campaignId}/draw`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prizeId: currentDrawingPrizeId,
           draftMode,
-          winningNumber: winningNumberRaw,
+          winningNumber: winningNumberPadded,
         }),
       });
 
@@ -343,20 +343,18 @@ export default function DrawCampaignPage({ params }: PageProps) {
     }
   };
 
-  // Handle complete draw
+  // Handle complete draw (chốt kết quả): gọi API complete để chuyển campaign sang completed và hủy đơn chờ
   const handleCompleteDraw = async () => {
     setIsUpdating(true);
     try {
-      const response = await fetch(`/api/v1/admin/campaigns/${campaignId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed' }),
+      const response = await fetch(`/api/v1/admin/campaigns/${campaignId}/complete`, {
+        method: 'POST',
       });
 
       const result = await response.json();
 
       if (result.success) {
-        const failedOrdersCount = result.data?.failedOrdersCount || 0;
+        const failedOrdersCount = result.data?.failedOrdersCount ?? 0;
         if (failedOrdersCount > 0) {
           toast.success(
             `Campaign đã hoàn thành. ${failedOrdersCount} đơn hàng đang chờ thanh toán đã bị hủy.`
@@ -366,11 +364,11 @@ export default function DrawCampaignPage({ params }: PageProps) {
         }
         router.push('/admin/campaigns');
       } else {
-        toast.error(result.error?.message || 'Failed to complete campaign');
+        toast.error(result.error?.message || 'Chốt kết quả thất bại');
       }
     } catch (error) {
       console.error('Error completing campaign:', error);
-      toast.error('Failed to complete campaign');
+      toast.error('Chốt kết quả thất bại');
     } finally {
       setIsUpdating(false);
     }

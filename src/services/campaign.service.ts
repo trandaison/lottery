@@ -219,7 +219,7 @@ export class CampaignService {
     newStatus: Campaign['status']
   ): void {
     const validTransitions: Record<string, string[]> = {
-      active: ['drawing', 'canceled'],
+      active: ['drawing', 'canceled', 'completed'],
       drawing: ['completed'],
       completed: [], // Cannot transition from completed
       canceled: [], // Cannot transition from canceled
@@ -259,8 +259,8 @@ export class CampaignService {
   }
 
   /**
-   * Complete a campaign (only if status is 'drawing')
-   * Also fails all pending orders
+   * Complete a campaign (allowed from 'active' or 'drawing').
+   * Also fails all pending orders.
    */
   async complete(id: number): Promise<{ campaign: Campaign; failedOrdersCount: number }> {
     const campaign = await this.getById(id);
@@ -268,8 +268,8 @@ export class CampaignService {
       throw new Error('CAMPAIGN_NOT_FOUND');
     }
 
-    if (campaign.status !== 'drawing') {
-      throw new Error('CANNOT_COMPLETE: Only drawing campaigns can be completed');
+    if (campaign.status !== 'active' && campaign.status !== 'drawing') {
+      throw new Error('CANNOT_COMPLETE: Only active or drawing campaigns can be completed');
     }
 
     // Check if all prizes have winning numbers
