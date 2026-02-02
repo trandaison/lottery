@@ -77,12 +77,34 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Query winning number using query-first algorithm
-    const winningNumber = await drawService.queryWinningNumber(
-      campaignId,
-      prize.matchingDigits,
-      campaign.excludeWinningNumbers
-    );
+    // Use client-provided winning number (from stop) or query randomly
+    let winningNumber: string;
+    if (validatedData.winningNumber != null && validatedData.winningNumber !== '') {
+      const candidates = await drawService.getCandidateNumbers(
+        campaignId,
+        prize.matchingDigits,
+        campaign.excludeWinningNumbers
+      );
+      if (!candidates.includes(validatedData.winningNumber)) {
+        return NextResponse.json<ApiResponse>(
+          {
+            success: false,
+            error: {
+              code: 'INVALID_WINNING_NUMBER',
+              message: 'Winning number is not in the candidate list for this prize',
+            },
+          },
+          { status: 400 }
+        );
+      }
+      winningNumber = validatedData.winningNumber;
+    } else {
+      winningNumber = await drawService.queryWinningNumber(
+        campaignId,
+        prize.matchingDigits,
+        campaign.excludeWinningNumbers
+      );
+    }
 
     // Find matching tickets
     const matchingTickets = await drawService.findMatchingTickets(

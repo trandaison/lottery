@@ -83,6 +83,40 @@ export class DrawService {
   }
 
   /**
+   * Get all candidate numbers (distinct suffixes) for a prize draw.
+   * Used when client shuffles and animates; no random pick on server.
+   *
+   * @param campaignId - Campaign ID
+   * @param matchingDigits - Number of digits to match (1-6)
+   * @param excludeWinning - Whether to exclude already winning tickets
+   * @returns Array of suffix strings WITHOUT left-padding
+   */
+  async getCandidateNumbers(
+    campaignId: number,
+    matchingDigits: number,
+    excludeWinning: boolean
+  ): Promise<string[]> {
+    if (matchingDigits < 1 || matchingDigits > 6) {
+      throw new Error(
+        `INVALID_MATCHING_DIGITS: Matching digits must be between 1 and 6, got ${matchingDigits}`
+      );
+    }
+
+    const whereConditions = excludeWinning
+      ? and(eq(tickets.campaignId, campaignId), eq(tickets.isWinning, false))
+      : eq(tickets.campaignId, campaignId);
+
+    const suffixes = await db
+      .selectDistinct({
+        suffix: sql<string>`RIGHT(${tickets.ticketNumber}, ${matchingDigits})`,
+      })
+      .from(tickets)
+      .where(whereConditions);
+
+    return suffixes.map((s) => s.suffix.trim()).filter(Boolean);
+  }
+
+  /**
    * Find matching tickets for a winning number
    * Matches from RIGHT to LEFT (last N digits)
    *

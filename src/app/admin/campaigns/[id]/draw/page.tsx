@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ScrollingMeter } from '@/components/admin/ScrollingMeter';
+import { DrawWheel } from '@/components/admin/DrawWheel';
 import { ResultsTable } from '@/components/admin/ResultsTable';
 import { WinnerPopup } from '@/components/admin/WinnerPopup';
 import { useAuth } from '@/lib/context/AuthContext';
@@ -49,8 +49,8 @@ export default function DrawCampaignPage({ params }: PageProps) {
   const [prizes, setPrizes] = useState<PrizeWithDrawStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [draftMode, setDraftMode] = useState(true);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [targetNumber, setTargetNumber] = useState<string | null>(null);
+  const [shuffledNumbers, setShuffledNumbers] = useState<string[] | null>(null);
+  const [isSubmittingDraw, setIsSubmittingDraw] = useState(false);
   const [currentMatchingDigits, setCurrentMatchingDigits] = useState(6);
   const [currentDrawingPrizeId, setCurrentDrawingPrizeId] = useState<number | null>(null);
   const [drawResult, setDrawResult] = useState<DrawResponse | null>(null);
@@ -122,70 +122,80 @@ export default function DrawCampaignPage({ params }: PageProps) {
     }
   };
 
-  // Handle draw prize
+  // Fisher–Yates shuffle
+  const shuffle = <T,>(arr: T[]): T[] => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j]!, a[i]!];
+    }
+    return a;
+  };
+
+  // Load candidates for a prize, shuffle on client, show DrawWheel
   const handleDraw = async (prizeId: number) => {
     const prize = prizes.find((p) => p.id === prizeId);
     if (!prize) return;
 
-    // Check if prize is already completed
     if (prize.drawStatus === 'completed') {
       toast.error('Giải này đã hoàn thành');
       return;
     }
 
-    // Start animation
-    setIsAnimating(true);
     setCurrentDrawingPrizeId(prizeId);
     setCurrentMatchingDigits(prize.matchingDigits);
-    setTargetNumber(null);
+    setShuffledNumbers(null);
 
     try {
-      // Call API to get winning number (query-first)
+      const response = await fetch(
+        `/api/v1/admin/campaigns/${campaignId}/draw/candidates?prizeId=${prizeId}`
+      );
+      const result = await response.json();
+
+      if (result.success && Array.isArray(result.data?.numbers)) {
+        const numbers = shuffle(result.data.numbers as string[]);
+        setShuffledNumbers(numbers);
+      } else {
+        toast.error(result.error?.message || 'Không thể tải danh sách số');
+        setCurrentDrawingPrizeId(null);
+      }
+    } catch (error) {
+      console.error('Error loading candidates:', error);
+      toast.error('Không thể tải danh sách số');
+      setCurrentDrawingPrizeId(null);
+    }
+  };
+
+  // When user clicks "Dừng" on DrawWheel: submit winning number and show popup
+  const handleWheelStop = async (winningNumber: string) => {
+    if (currentDrawingPrizeId == null) return;
+
+    setIsSubmittingDraw(true);
+    try {
       const response = await fetch(`/api/v1/admin/campaigns/${campaignId}/draw`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prizeId,
+          prizeId: currentDrawingPrizeId,
           draftMode,
+          winningNumber,
         }),
       });
 
       const result = await response.json();
 
       if (result.success) {
-        const drawData: DrawResponse = result.data;
-        setDrawResult(drawData);
-        setTargetNumber(drawData.winningNumber);
-
-        // If not draft mode, refresh prizes to show updated status
-        if (!draftMode) {
-          await fetchPrizes();
-        }
+        setDrawResult(result.data as DrawResponse);
+        if (!draftMode) await fetchPrizes();
+        setTimeout(() => setShowWinnerPopup(true), 750);
       } else {
-        toast.error(result.error?.message || 'Failed to draw winning number');
-        setIsAnimating(false);
-        setCurrentDrawingPrizeId(null);
+        toast.error(result.error?.message || 'Xác nhận kết quả thất bại');
       }
     } catch (error) {
-      console.error('Error drawing:', error);
-      toast.error('Failed to draw winning number');
-      setIsAnimating(false);
-      setCurrentDrawingPrizeId(null);
-    }
-  };
-
-  // Handle animation complete
-  const handleAnimationComplete = () => {
-    setIsAnimating(false);
-    setShowWinnerPopup(true);
-  };
-
-  // Handle stop animation (manual stop)
-  const handleStopAnimation = () => {
-    if (targetNumber) {
-      // Force complete animation
-      setIsAnimating(false);
-      setShowWinnerPopup(true);
+      console.error('Error confirming draw:', error);
+      toast.error('Xác nhận kết quả thất bại');
+    } finally {
+      setIsSubmittingDraw(false);
     }
   };
 
@@ -301,24 +311,18 @@ export default function DrawCampaignPage({ params }: PageProps) {
                 id="draft-mode"
                 checked={draftMode}
                 onCheckedChange={setDraftMode}
-                disabled={isAnimating}
+                disabled={!!shuffledNumbers}
               />
               <Label htmlFor="draft-mode" className="cursor-pointer">
-                Chế độ thử nghiệm
+                Quay thử
               </Label>
             </div>
-            {draftMode && (
-              <Badge variant="destructive" className="gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Kết quả không được lưu
-              </Badge>
-            )}
           </div>
 
           {/* Right: Action buttons + Logout */}
           <div className="flex items-center gap-2">
             {canStartDraw && (
-              <Button onClick={() => setShowStartDialog(true)} disabled={isAnimating}>
+              <Button onClick={() => setShowStartDialog(true)} disabled={!!shuffledNumbers}>
                 Bắt đầu quay số
               </Button>
             )}
@@ -337,27 +341,22 @@ export default function DrawCampaignPage({ params }: PageProps) {
       {/* Main Content: 2-column grid */}
       <div className="w-full px-6 py-8">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-          {/* Left: Scrolling Meter */}
+          {/* Left: Draw Wheel (shuffled numbers, Quay số / Dừng) */}
           <div className="flex flex-col items-center justify-center">
-            <div className="mb-4 text-center">
-              <h2 className="mb-2 text-2xl font-bold">Máy quay số</h2>
-              {isAnimating && (
-                <Button
-                  onClick={handleStopAnimation}
-                  variant="destructive"
-                  size="lg"
-                  className="mt-4"
-                >
-                  Dừng
-                </Button>
-              )}
-            </div>
-            <ScrollingMeter
-              targetNumber={targetNumber}
-              matchingDigits={currentMatchingDigits}
-              isAnimating={isAnimating}
-              onAnimationComplete={handleAnimationComplete}
-            />
+            <h2 className="mb-4 text-2xl font-bold">Máy quay số</h2>
+            {shuffledNumbers ? (
+              <DrawWheel
+                numbers={shuffledNumbers}
+                matchingDigits={currentMatchingDigits}
+                onStop={handleWheelStop}
+                disabled={isSubmittingDraw}
+              />
+            ) : (
+              <div className="rounded-lg border-2 border-dashed border-muted-foreground/30 p-8 text-center text-muted-foreground">
+                Chọn giải bên phải và bấm &quot;Quay giải&quot; để tải danh sách số, sau đó bấm
+                &quot;Quay số&quot; rồi &quot;Dừng&quot; để chốt kết quả.
+              </div>
+            )}
           </div>
 
           {/* Right: Results Table */}
@@ -367,7 +366,7 @@ export default function DrawCampaignPage({ params }: PageProps) {
               prizes={prizes}
               onDraw={handleDraw}
               onRedo={handleRedo}
-              isDrawing={isAnimating}
+              isDrawing={!!shuffledNumbers}
               currentDrawingPrizeId={currentDrawingPrizeId}
             />
           </div>
@@ -379,12 +378,12 @@ export default function DrawCampaignPage({ params }: PageProps) {
         open={showWinnerPopup}
         onClose={() => {
           setShowWinnerPopup(false);
-          setTargetNumber(null);
+          setShuffledNumbers(null);
           setCurrentDrawingPrizeId(null);
         }}
         onContinue={() => {
           setShowWinnerPopup(false);
-          setTargetNumber(null);
+          setShuffledNumbers(null);
           setCurrentDrawingPrizeId(null);
         }}
         drawResult={drawResult}

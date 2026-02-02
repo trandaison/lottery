@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+import confetti from 'canvas-confetti';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +34,29 @@ export function WinnerPopup({
   drawResult,
   matchingDigits,
 }: WinnerPopupProps) {
+  useEffect(() => {
+    if (open && drawResult) {
+      const duration = 2500;
+      const end = Date.now() + duration;
+      const frame = () => {
+        confetti({
+          particleCount: 3,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0 },
+        });
+        confetti({
+          particleCount: 3,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1 },
+        });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      };
+      frame();
+    }
+  }, [open, drawResult]);
+
   if (!drawResult) return null;
 
   const displayNumber = drawResult.winningNumber.padStart(matchingDigits, '0');
@@ -41,10 +66,10 @@ export function WinnerPopup({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Kết quả quay số</DialogTitle>
+          <DialogTitle className="text-2xl">Chúc mừng! Số trúng thưởng</DialogTitle>
           <DialogDescription>
             {drawResult.draftMode
-              ? 'Đây là chế độ thử nghiệm. Kết quả chưa được lưu.'
+              ? 'Đây là lượt quay thử. Kết quả chưa được lưu.'
               : 'Kết quả đã được lưu vào hệ thống.'}
           </DialogDescription>
         </DialogHeader>
