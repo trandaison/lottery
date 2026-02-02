@@ -1,12 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { use } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -48,7 +46,7 @@ export default function DrawCampaignPage({ params }: PageProps) {
   const [campaign, setCampaign] = useState<PrizesResponse['campaign'] | null>(null);
   const [prizes, setPrizes] = useState<PrizeWithDrawStatus[]>([]);
   const [loading, setLoading] = useState(true);
-  const [draftMode, setDraftMode] = useState(true);
+  const [draftMode, setDraftMode] = useState(false);
   const [shuffledNumbers, setShuffledNumbers] = useState<string[] | null>(null);
   const [isSubmittingDraw, setIsSubmittingDraw] = useState(false);
   const [currentMatchingDigits, setCurrentMatchingDigits] = useState(6);
@@ -63,6 +61,80 @@ export default function DrawCampaignPage({ params }: PageProps) {
   const [showAlreadyWonDialog, setShowAlreadyWonDialog] = useState(false);
   const [alreadyWonNumber, setAlreadyWonNumber] = useState<string | null>(null);
   const [alreadyWonPrizeTitle, setAlreadyWonPrizeTitle] = useState<string | null>(null);
+
+  const SOUND_STORAGE_KEY = 'lottery-draw-sound';
+  const getStoredSound = useCallback(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      const v = localStorage.getItem(SOUND_STORAGE_KEY);
+      return v !== 'false';
+    } catch {
+      return true;
+    }
+  }, []);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  useEffect(() => {
+    setSoundEnabled(getStoredSound());
+  }, [getStoredSound]);
+  const bgAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Preload background music when visiting the page to avoid delay on first play
+  useEffect(() => {
+    const audio = new Audio('/assets/sounds/bg_sound.mp3');
+    audio.preload = 'auto';
+    audio.load();
+    bgAudioRef.current = audio;
+    return () => {
+      audio.pause();
+      bgAudioRef.current = null;
+    };
+  }, []);
+
+  const handleSoundChange = useCallback((enabled: boolean) => {
+    setSoundEnabled(enabled);
+    try {
+      localStorage.setItem(SOUND_STORAGE_KEY, String(enabled));
+      const audio = bgAudioRef.current;
+      if (audio) audio.volume = enabled ? 1 : 0;
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const playBgSound = useCallback(() => {
+    try {
+      const audio = bgAudioRef.current;
+      if (audio) {
+        audio.loop = true;
+        audio.volume = soundEnabled ? 1 : 0;
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
+  }, [soundEnabled]);
+
+  const stopBgSound = useCallback(() => {
+    try {
+      if (bgAudioRef.current) {
+        bgAudioRef.current.pause();
+        bgAudioRef.current.currentTime = 0;
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const playSuccessSound = useCallback(() => {
+    if (!soundEnabled) return;
+    try {
+      const audio = new Audio('/assets/sounds/success.wav');
+      audio.play().catch(() => {});
+    } catch {
+      // ignore
+    }
+  }, [soundEnabled]);
 
   // Fetch prizes data
   const fetchPrizes = useCallback(async () => {
@@ -198,6 +270,7 @@ export default function DrawCampaignPage({ params }: PageProps) {
         );
         const checkResult = await checkRes.json();
         if (checkResult.success && checkResult.data?.alreadyWon && checkResult.data.prize) {
+          stopBgSound();
           setAlreadyWonNumber(number6);
           setAlreadyWonPrizeTitle(checkResult.data.prize.title);
           setShowAlreadyWonDialog(true);
@@ -221,7 +294,11 @@ export default function DrawCampaignPage({ params }: PageProps) {
       if (result.success) {
         setDrawResult(result.data as DrawResponse);
         if (!draftMode) await fetchPrizes();
-        setTimeout(() => setShowWinnerPopup(true), 750);
+        setTimeout(() => {
+          stopBgSound();
+          playSuccessSound();
+          setShowWinnerPopup(true);
+        }, 750);
       } else {
         toast.error(result.error?.message || 'Xác nhận kết quả thất bại');
       }
@@ -338,21 +415,6 @@ export default function DrawCampaignPage({ params }: PageProps) {
             <h1 className="text-xl font-semibold">{campaign.title}</h1>
           </div>
 
-          {/* Center: Draft mode toggle */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Switch
-                id="draft-mode"
-                checked={draftMode}
-                onCheckedChange={setDraftMode}
-                disabled={!!shuffledNumbers}
-              />
-              <Label htmlFor="draft-mode" className="cursor-pointer">
-                Quay thử
-              </Label>
-            </div>
-          </div>
-
           {/* Right: Action buttons + Logout */}
           <div className="flex items-center gap-2">
             {canStartDraw && (
@@ -377,22 +439,28 @@ export default function DrawCampaignPage({ params }: PageProps) {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           {/* Left: Draw Wheel (shuffled numbers, Quay số / Dừng) */}
           <div className="flex flex-col items-center justify-center">
-            <h2 className="mb-4 text-2xl font-bold">Máy quay số</h2>
-            {shuffledNumbers ? (
-              <DrawWheelGroup
-                numbers={shuffledNumbers}
-                matchingDigits={currentMatchingDigits}
-                excludeWinningNumbers={campaign?.excludeWinningNumbers ?? false}
-                winningNumberSuffixes={winningNumberSuffixes}
-                onComplete={handleWheelStop}
-                disabled={isSubmittingDraw}
-              />
-            ) : (
-              <div className="rounded-lg border-2 border-dashed border-muted-foreground/30 p-8 text-center text-muted-foreground">
-                Chọn giải bên phải và bấm &quot;Quay giải&quot; để tải danh sách số, sau đó bấm
-                &quot;Quay số&quot; rồi &quot;Dừng&quot; để chốt kết quả.
-              </div>
-            )}
+            <h2 className="mb-4 text-2xl font-bold">
+              {currentDrawingPrizeId != null
+                ? (() => {
+                    const prize = prizes.find((p) => p.id === currentDrawingPrizeId);
+                    return prize ? `Đang quay: ${prize.title}` : 'Chọn giải để quay';
+                  })()
+                : 'Chọn giải để quay'}
+            </h2>
+            <DrawWheelGroup
+              key={currentDrawingPrizeId ?? 'no-prize'}
+              numbers={shuffledNumbers ?? ['000000']}
+              matchingDigits={currentMatchingDigits}
+              excludeWinningNumbers={campaign?.excludeWinningNumbers ?? false}
+              winningNumberSuffixes={winningNumberSuffixes}
+              onComplete={handleWheelStop}
+              disabled={isSubmittingDraw}
+              soundEnabled={soundEnabled}
+              onSoundChange={handleSoundChange}
+              onSpinStart={playBgSound}
+              draftMode={draftMode}
+              onDraftModeChange={setDraftMode}
+            />
           </div>
 
           {/* Right: Results Table */}

@@ -10,11 +10,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { SingleDigitWheel, type SingleDigitWheelRef } from '@/components/admin/SingleDigitWheel';
+import { Volume2, VolumeX, LightbulbIcon } from 'lucide-react';
 import { getDigitArrayForPosition } from '@/lib/utils/draw';
 
 const FPS_OPTIONS = [120, 60, 30, 24, 16, 8, 4] as const;
-const DEFAULT_FPS = 8;
+const DEFAULT_FPS = 60;
+const FPS_STORAGE_KEY = 'lottery-draw-fps';
+
+function getStoredFps(): number {
+  if (typeof window === 'undefined') return DEFAULT_FPS;
+  try {
+    const stored = localStorage.getItem(FPS_STORAGE_KEY);
+    if (stored == null) return DEFAULT_FPS;
+    const n = Number(stored);
+    return FPS_OPTIONS.includes(n as (typeof FPS_OPTIONS)[number]) ? n : DEFAULT_FPS;
+  } catch {
+    return DEFAULT_FPS;
+  }
+}
+
+function setStoredFps(value: number): void {
+  try {
+    localStorage.setItem(FPS_STORAGE_KEY, String(value));
+  } catch {
+    // ignore
+  }
+}
 
 export interface DrawWheelGroupProps {
   /** Candidate numbers (each 6 digits from server). */
@@ -29,6 +52,16 @@ export interface DrawWheelGroupProps {
   onComplete: (winningNumber: string) => void;
   /** Disable controls (e.g. while submitting). */
   disabled?: boolean;
+  /** Bật/tắt âm thanh (nhạc nền khi quay, tiếng success khi trúng). */
+  soundEnabled?: boolean;
+  /** Callback khi user đổi checkbox âm thanh. */
+  onSoundChange?: (enabled: boolean) => void;
+  /** Gọi khi bắt đầu quay (để parent play nhạc nền). */
+  onSpinStart?: () => void;
+  /** Quay thử (draft mode). */
+  draftMode?: boolean;
+  /** Callback khi đổi quay thử. */
+  onDraftModeChange?: (checked: boolean) => void;
 }
 
 /**
@@ -42,16 +75,34 @@ export function DrawWheelGroup({
   winningNumberSuffixes,
   onComplete,
   disabled = false,
+  soundEnabled = true,
+  onSoundChange,
+  onSpinStart,
+  draftMode = false,
+  onDraftModeChange,
 }: DrawWheelGroupProps) {
   const [isRunning, setIsRunning] = useState(false);
+  const [hasStartedSpin, setHasStartedSpin] = useState(false);
   const [nextStoppableIndex, setNextStoppableIndex] = useState(0);
   const [finalDigits, setFinalDigits] = useState<(number | null)[]>(
     () => Array(6).fill(null) as (number | null)[]
   );
-  const [fpsHz, setFpsHz] = useState(DEFAULT_FPS);
+  const [fpsHz, setFpsHz] = useState(() => getStoredFps());
   const containerRef = useRef<HTMLDivElement>(null);
   const wheelRefs = useRef<(SingleDigitWheelRef | null)[]>([]);
   const completedRef = useRef(false);
+
+  /** Reset về 000000 khi đổi giải (numbers thay đổi). */
+  useEffect(() => {
+    if (startTimeoutRef.current) {
+      clearTimeout(startTimeoutRef.current);
+      startTimeoutRef.current = null;
+    }
+    setHasStartedSpin(false);
+    setFinalDigits(Array(6).fill(null) as (number | null)[]);
+    setNextStoppableIndex(0);
+    setIsRunning(false);
+  }, [numbers]);
 
   const intervalMs = 1000 / fpsHz;
 
@@ -122,13 +173,26 @@ export function DrawWheelGroup({
     return digitArraysForDisplay.some((d) => d.length > 1);
   }, [digitArraysForDisplay]);
 
+  const startTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleStart = useCallback(() => {
     if (!canStart || disabled) return;
     completedRef.current = false;
-    setIsRunning(true);
-    setNextStoppableIndex(0);
-    setFinalDigits(Array(6).fill(null) as (number | null)[]);
-  }, [canStart, disabled]);
+    onSpinStart?.();
+    startTimeoutRef.current = setTimeout(() => {
+      startTimeoutRef.current = null;
+      setHasStartedSpin(true);
+      setIsRunning(true);
+      setNextStoppableIndex(0);
+      setFinalDigits(Array(6).fill(null) as (number | null)[]);
+    }, 500);
+  }, [canStart, disabled, onSpinStart]);
+
+  useEffect(() => {
+    return () => {
+      if (startTimeoutRef.current) clearTimeout(startTimeoutRef.current);
+    };
+  }, []);
 
   const handleWheelStop = useCallback(
     (wheelIndex: number, digit: number) => {
@@ -145,13 +209,14 @@ export function DrawWheelGroup({
   useEffect(() => {
     if (nextStoppableIndex < 6) return;
     if (completedRef.current) return;
+    if (!hasStartedSpin) return;
     completedRef.current = true;
     setIsRunning(false);
     const winningNumber = finalDigits
       .map((d) => (d === null ? '0' : String(d)))
       .join('');
     onComplete(winningNumber);
-  }, [nextStoppableIndex, finalDigits, onComplete]);
+  }, [nextStoppableIndex, finalDigits, onComplete, hasStartedSpin]);
 
   /** Vị trí nào chỉ có 1 candidate (length <= 1) thì stop ô đó luôn, không quay; advance đến ô tiếp theo. */
   useEffect(() => {
@@ -206,10 +271,13 @@ export function DrawWheelGroup({
       <div className="flex gap-2 items-end">
         {wheelIndicesLeftToRight.map((wheelIndex) => {
           const fixedDigit = finalDigits[5 - wheelIndex];
+          const showInitialZero = !hasStartedSpin && !isRunning;
           const digits =
             fixedDigit !== null
               ? [fixedDigit]
-              : (digitArraysForDisplay[wheelIndex] ?? []);
+              : showInitialZero
+                ? (wheelIndex >= matchingDigits ? [] : [0])
+                : (digitArraysForDisplay[wheelIndex] ?? []);
           return (
             <SingleDigitWheel
               key={wheelIndex}
@@ -229,26 +297,39 @@ export function DrawWheelGroup({
               onStop={(digit) => handleWheelStop(wheelIndex, digit)}
               intervalMs={intervalMs}
               disabled={disabled}
+              showCheck={fixedDigit !== null}
             />
           );
         })}
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center gap-3 flex-wrap">
-        {!isRunning && (
-          <Button onClick={handleStart} disabled={!canStart || disabled} size="lg">
-            Quay số
-          </Button>
-        )}
-        <div className="flex items-center gap-2">
-          <Label htmlFor="fps-select" className="text-sm text-muted-foreground">
-            Tần số quay:
-          </Label>
+      <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-3 flex-wrap">
+        <Button onClick={handleStart} disabled={!canStart || disabled || isRunning} size="lg">
+          Quay số (Space)
+        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onDraftModeChange != null && (
+            <div className="flex items-center gap-2">
+              <Label htmlFor="draw-draft-mode" className="cursor-pointer text-sm text-muted-foreground">
+                Quay thử
+              </Label>
+              <Switch
+                id="draw-draft-mode"
+                checked={draftMode}
+                onCheckedChange={onDraftModeChange}
+                disabled={disabled}
+              />
+            </div>
+          )}
           <Select
             value={String(fpsHz)}
-            onValueChange={(v) => setFpsHz(Number(v) as typeof FPS_OPTIONS[number])}
+            onValueChange={(v) => {
+              const num = Number(v) as (typeof FPS_OPTIONS)[number];
+              setFpsHz(num);
+              setStoredFps(num);
+            }}
           >
-            <SelectTrigger id="fps-select" className="w-24">
+            <SelectTrigger id="fps-select" className="w-24 border-0 shadow-none">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -259,39 +340,31 @@ export function DrawWheelGroup({
               ))}
             </SelectContent>
           </Select>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'}
+            disabled={disabled}
+            onClick={() => onSoundChange?.(!soundEnabled)}
+          >
+            {soundEnabled ? (
+              <Volume2 className="h-4 w-4" />
+            ) : (
+              <VolumeX className="h-4 w-4" />
+            )}
+          </Button>
         </div>
       </div>
 
-      <p className="text-sm text-muted-foreground text-center max-w-md">
-        Phím Space: Bắt đầu quay; khi đang quay nhấn Space để dừng từng số (từ phải sang trái).
+      <p className="text-sm text-muted-foreground text-center max-w-md flex items-center gap-1">
+        <LightbulbIcon className="h-4 w-4" /> Nhấn Space để quay số hoặc dừng quay.
       </p>
 
       {/* Debug: 6 mảng cột + mảng cột đang quay */}
       <div className="mt-6 w-full max-w-2xl rounded-lg border border-amber-200 bg-amber-50/80 p-4 font-mono text-xs">
-        <div className="mb-2 font-semibold text-amber-900">Debug (6 mảng cột)</div>
-        <div className="space-y-1 text-amber-900">
-          {digitArraysForDisplay.map((arr, pos) => (
-            <div key={pos}>
-              <span className="font-medium">Cột {pos}</span>
-              <span className="ml-2 text-amber-700">
-                ({pos === 0 ? 'phải nhất' : pos === 5 ? 'trái nhất' : ''}) [{arr.join(', ')}]
-              </span>
-              {arr.length === 0 && (
-                <span className="ml-2 text-red-600">→ rỗng (sẽ hiển thị &quot;-&quot;)</span>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 border-t border-amber-200 pt-2 font-semibold text-amber-900">
-          Cột đang quay (nextStoppableIndex={nextStoppableIndex}):
-          <span className="ml-2 font-normal text-amber-700">
-            {isRunning && nextStoppableIndex < 6
-              ? `[${(digitArraysForDisplay[nextStoppableIndex] ?? []).join(', ')}]`
-              : ' —'}
-          </span>
-        </div>
-        <div className="mt-2 border-t border-amber-200 pt-2 text-amber-700">
-          filteredCandidates (endWith &quot;{suffixSoFar || '(chưa có)'}&quot;): {filteredCandidates.length} số
+        <div className="border-amber-200 text-amber-700">
+          &quot;{suffixSoFar.padStart(matchingDigits, '*')}&quot;: {filteredCandidates.length} số
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Check, Square } from 'lucide-react';
 
 export interface SingleDigitWheelProps {
   /** Digits that can appear (unique). */
@@ -16,6 +17,8 @@ export interface SingleDigitWheelProps {
   intervalMs: number;
   /** Disable controls (e.g. while submitting). */
   disabled?: boolean;
+  /** Hiển thị icon check (chỉ khi đã dừng quay tại số này). */
+  showCheck?: boolean;
 }
 
 export interface SingleDigitWheelRef {
@@ -23,14 +26,17 @@ export interface SingleDigitWheelRef {
   stopNow: () => void;
 }
 
+/** Fixed height for button row to avoid layout shift when button is shown/hidden. */
+const BUTTON_ROW_HEIGHT = 40;
+
 /**
  * SingleDigitWheel: one slot showing one digit.
- * - Empty digits → show "-", no buttons.
- * - One digit → show it, no spin, no buttons.
- * - More than one → cycle when isRunning; Stop button always visible, enabled only when canStop && isRunning (avoids layout shift).
+ * - Empty digits → show "-", placeholder keeps height.
+ * - One digit → show it, icon button (disabled) keeps height.
+ * - More than one → cycle when isRunning; icon Stop button always visible, enabled only when canStop && isRunning.
  */
 export const SingleDigitWheel = forwardRef<SingleDigitWheelRef, SingleDigitWheelProps>(function SingleDigitWheel(
-  { digits, isRunning, canStop, onStop, intervalMs, disabled = false },
+  { digits, isRunning, canStop, onStop, intervalMs, disabled = false, showCheck = false },
   ref
 ) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -79,24 +85,35 @@ export const SingleDigitWheel = forwardRef<SingleDigitWheelRef, SingleDigitWheel
     if (digit !== undefined) onStop(digit);
   };
 
+  const showStopButton = digits.length > 1;
+  const stopEnabled = showStopButton && canStop && isRunning && !disabled;
+
   if (digits.length === 0) {
     return (
-      <div
-        className="flex h-32 w-24 items-center justify-center rounded-lg border-4 border-gray-300 bg-gray-100 text-4xl font-bold text-muted-foreground"
-        aria-label="Vị trí trống"
-      >
-        -
+      <div className="flex flex-col items-center gap-2">
+        <div
+          className="flex h-32 w-24 items-center justify-center rounded-lg border-4 border-gray-300 bg-gray-100 text-4xl font-bold text-muted-foreground"
+          aria-label="Vị trí trống"
+        >
+          -
+        </div>
+        <div className="flex h-[var(--btn-row)] items-center justify-center" style={{ height: BUTTON_ROW_HEIGHT }} aria-hidden />
       </div>
     );
   }
 
   if (digits.length === 1) {
     return (
-      <div
-        className="flex h-32 w-24 items-center justify-center rounded-lg border-4 border-blue-500 bg-gradient-to-b from-blue-50 to-blue-100 text-6xl font-bold text-blue-900 shadow-lg"
-        aria-label={`Chữ số ${digits[0]}`}
-      >
-        {digits[0]}
+      <div className="flex flex-col items-center gap-2">
+        <div
+          className="flex h-32 w-24 items-center justify-center rounded-lg border-4 border-blue-500 bg-gradient-to-b from-blue-50 to-blue-100 text-6xl font-bold text-blue-900 shadow-lg"
+          aria-label={`Chữ số ${digits[0]}`}
+        >
+          {digits[0]}
+        </div>
+        <div className="h-10 w-10 shrink-0 flex items-center justify-center text-muted-foreground text-2xl font-bold" style={{ minHeight: BUTTON_ROW_HEIGHT }} aria-hidden>
+          {showCheck ? <Check className="h-5 w-5 text-green-500" /> : '-'}
+        </div>
       </div>
     );
   }
@@ -113,13 +130,13 @@ export const SingleDigitWheel = forwardRef<SingleDigitWheelRef, SingleDigitWheel
       </div>
       <Button
         variant="destructive"
-        size="sm"
+        size="icon"
         onClick={handleStop}
-        disabled={!(canStop && isRunning) || disabled}
+        disabled={!stopEnabled}
         aria-label="Dừng tại số này"
-        className="min-w-[4.5rem]"
+        className="h-10 w-10 shrink-0"
       >
-        Dừng
+        <Square className="h-5 w-5" />
       </Button>
     </div>
   );

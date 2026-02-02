@@ -9,7 +9,7 @@ interface RandomNumberAnimatorProps {
 
 export default function RandomNumberAnimator({
   numbers,
-  fps = 8,
+  fps = 60,
 }: RandomNumberAnimatorProps) {
   const [current, setCurrent] = useState(numbers[0] ?? '000000');
 
