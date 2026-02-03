@@ -27,12 +27,15 @@ function escapePangoMarkup(text: string): string {
  */
 export class TicketImageService {
   private readonly templatePath: string;
+  private readonly fontPath: string;
   private readonly templateWidth: number = 500;
   private readonly templateHeight: number = 256;
 
   constructor() {
     // Template path: src/assets/img/ticket_template.png
     this.templatePath = join(process.cwd(), 'src', 'assets', 'img', 'ticket_template.png');
+    // Font file (Roboto TTF) — dùng fontfile để chạy đúng trên Vercel/Linux (không phụ thuộc next/font hay system font).
+    this.fontPath = join(process.cwd(), 'src', 'assets', 'fonts', 'Roboto-Regular.ttf');
   }
 
   /**
@@ -50,15 +53,16 @@ export class TicketImageService {
       // 46pt, đen, letter spacing. Chỉ vẽ số vé.
       const textMarkup = `<span size="46000" foreground="black" letter_spacing="15600">${escapePangoMarkup(ticket.ticketNumber)}</span>`;
 
-      // Use generic "Sans" so Pango picks a system sans-serif font available on Linux (Vercel).
-      // "Arial" is not installed on Vercel → text renders as squares (missing font).
+      // Dùng fontfile (Roboto TTF bundle trong repo) để số vé hiển thị đúng trên Vercel/Linux.
+      // next/font chỉ dùng cho CSS, sharp dùng Pango nên cần đường dẫn file font.
       const image = await sharp(this.templatePath)
         .composite([
           {
             input: {
               text: {
                 text: textMarkup,
-                font: 'Sans',
+                font: 'Roboto',
+                fontfile: this.fontPath,
                 rgba: true,
               },
             },
