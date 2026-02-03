@@ -1,0 +1,2 @@
+id,uuid,name,email,password_digest,phone,status,role,created_at,updated_at
+1,127a1d08-3262-42e8-b92b-841bc444d037,Trần Đại Sơn,sontd@mynavitechtus.com,NULL,0706213188,active,user,2026-01-27 21:45:53.634194+07,2026-01-27 21:45:53.634194+07

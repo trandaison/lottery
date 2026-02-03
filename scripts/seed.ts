@@ -4,6 +4,7 @@ import * as path from 'path';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import bcrypt from 'bcryptjs';
 
 // Load environment variables FIRST
 dotenv.config({ path: '.env.local' });
@@ -22,11 +23,47 @@ const db = drizzle(client, {
   schema: { users, campaigns, campaignPrizes, tickets },
 });
 
-// Helper function to parse CSV file
+const DEFAULT_PASSWORD = process.env.DEFAULT_PASSWORD ?? 'password123';
+const SALT_ROUNDS = 10;
+
+/** Seed context shared across handlers (CSV id -> DB id maps, seeded emails for password update) */
+type SeedContext = {
+  userIdMap: Map<number, number>;
+  campaignIdMap: Map<number, number>;
+  /** Emails of users we seeded — only these get password updated to DEFAULT_PASSWORD */
+  seededUserEmails: string[];
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getSeedDir(): string | null {
+  const base = path.join(__dirname, '../src/db/seeds');
+  const env = process.env.NODE_ENV || 'development';
+  let dir = path.join(base, env);
+
+  return fs.existsSync(dir) ? dir : null;
+}
+
+function getCsvFiles(seedDir: string | null): string[] {
+  if (!seedDir) return [];
+
+  return fs
+    .readdirSync(seedDir)
+    .filter((f) => f.endsWith('.csv'))
+    .sort();
+}
+
+/** Parse table key from filename: 01_users.csv -> users, 03_campaign_prizes.csv -> campaign_prizes */
+function tableKeyFromFilename(filename: string): string {
+  const name = path.basename(filename, '.csv');
+  const match = name.match(/^\d+_(.+)$/);
+  return match ? match[1] : name;
+}
+
 function parseCSV(filePath: string): Array<Record<string, string>> {
   const content = fs.readFileSync(filePath, 'utf-8');
-
-  // Split into lines while preserving newlines inside quoted fields
   const lines: string[] = [];
   let currentLine = '';
   let inQuotes = false;
@@ -34,65 +71,49 @@ function parseCSV(filePath: string): Array<Record<string, string>> {
   for (let i = 0; i < content.length; i++) {
     const char = content[i];
     const nextChar = content[i + 1];
-
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
         currentLine += '"';
-        i++; // Skip next quote (escaped quote)
+        i++;
       } else {
         inQuotes = !inQuotes;
         currentLine += char;
       }
     } else if (char === '\n' && !inQuotes) {
-      if (currentLine.trim()) {
-        lines.push(currentLine);
-      }
+      if (currentLine.trim()) lines.push(currentLine);
       currentLine = '';
     } else {
       currentLine += char;
     }
   }
-
-  if (currentLine.trim()) {
-    lines.push(currentLine);
-  }
-
+  if (currentLine.trim()) lines.push(currentLine);
   if (lines.length < 2) return [];
 
   const headers = parseCSVLine(lines[0]).map((h) => h.trim());
   const rows: Array<Record<string, string>> = [];
-
   for (let i = 1; i < lines.length; i++) {
     const values = parseCSVLine(lines[i]);
-    if (values.length !== headers.length) {
-      // Skip rows with incorrect number of columns
-      continue;
-    }
-
+    if (values.length !== headers.length) continue;
     const row: Record<string, string> = {};
     headers.forEach((header, index) => {
       row[header] = values[index]?.trim() || '';
     });
     rows.push(row);
   }
-
   return rows;
 }
 
-// Helper to parse CSV line handling quoted values
 function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
-
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
     const nextChar = line[i + 1];
-
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
         current += '"';
-        i++; // Skip next quote
+        i++;
       } else {
         inQuotes = !inQuotes;
       }
@@ -107,15 +128,11 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
-// Helper to convert snake_case to camelCase
 function snakeToCamel(str: string): string {
   return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 
-// Helper to convert CSV row keys to camelCase
-function convertKeysToCamelCase(
-  row: Record<string, string>,
-): Record<string, string> {
+function convertKeysToCamelCase(row: Record<string, string>): Record<string, string> {
   const converted: Record<string, string> = {};
   for (const [key, value] of Object.entries(row)) {
     converted[snakeToCamel(key)] = value;
@@ -123,7 +140,6 @@ function convertKeysToCamelCase(
   return converted;
 }
 
-// Helper to parse date string
 function parseDate(dateStr: string): Date | null {
   if (!dateStr || dateStr === 'NULL' || dateStr === '') return null;
   try {
@@ -133,240 +149,224 @@ function parseDate(dateStr: string): Date | null {
   }
 }
 
-// Helper to parse boolean
 function parseBoolean(boolStr: string): boolean {
   if (!boolStr) return false;
   const lower = boolStr.toLowerCase();
   return lower === 'true' || lower === 't' || lower === '1';
 }
 
-// Helper to parse integer
 function parseInteger(intStr: string): number | null {
   if (!intStr || intStr === 'NULL' || intStr === '') return null;
   const parsed = parseInt(intStr, 10);
   return isNaN(parsed) ? null : parsed;
 }
 
-// Helper to parse UUID (returns undefined if NULL or empty)
 function parseUUID(uuidStr: string): string | undefined {
   if (!uuidStr || uuidStr === 'NULL' || uuidStr.trim() === '') return undefined;
   return uuidStr.trim();
 }
 
-async function seed() {
-  try {
-    console.log('🌱 Seeding database from CSV files...\n');
+function omitUndefined<T extends Record<string, unknown>>(obj: T): T {
+  const out = { ...obj };
+  Object.keys(out).forEach((key) => {
+    if (out[key] === undefined) delete out[key];
+  });
+  return out;
+}
 
-    const seedDir = path.join(
-      __dirname,
-      '../src/db/seeds/development',
-    );
+// ---------------------------------------------------------------------------
+// Seed handlers (per table)
+// ---------------------------------------------------------------------------
 
-    // Mapping from CSV IDs to database IDs
-    const userIdMap = new Map<number, number>();
-    const campaignIdMap = new Map<number, number>();
+async function seedUsers(
+  filePath: string,
+  ctx: SeedContext,
+): Promise<void> {
+  const rows = parseCSV(filePath);
+  console.log(`   Found ${rows.length} users`);
 
-    // 1. Load users
-    console.log('📂 Loading users from 01_users.csv...');
-    const usersData = parseCSV(path.join(seedDir, '01_users.csv'));
-    console.log(`   Found ${usersData.length} users`);
+  for (const row of rows) {
+    const csvId = parseInteger(row.id);
+    if (!csvId) continue;
 
-    for (const row of usersData) {
-      const csvId = parseInteger(row.id);
-      if (!csvId) continue;
+    const userData = convertKeysToCamelCase(row);
 
-      const userData = convertKeysToCamelCase(row);
-      const insertData: any = {
-        uuid: parseUUID(userData.uuid),
-        name: userData.name,
-        email: userData.email,
-        passwordDigest: userData.passwordDigest === 'NULL' || userData.passwordDigest === '' ? null : userData.passwordDigest,
-        phone: userData.phone === 'NULL' || userData.phone === '' ? null : userData.phone,
-        status: userData.status,
-        role: userData.role,
-        createdAt: parseDate(userData.createdAt) || undefined,
-        updatedAt: parseDate(userData.updatedAt) || undefined,
-      };
+    // Find or create: if user exists by email, skip (do not update — avoid resetting password on deploy)
+    const existing = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, userData.email))
+      .limit(1);
 
-      // Remove undefined values
-      Object.keys(insertData).forEach(
-        (key) => insertData[key] === undefined && delete insertData[key],
-      );
+    if (existing.length > 0) {
+      ctx.userIdMap.set(csvId, existing[0].id);
+      continue;
+    }
 
-      try {
-        const [inserted] = await db
-          .insert(users)
-          .values(insertData)
-          .onConflictDoUpdate({
-            target: users.email,
-            set: {
-              name: insertData.name,
-              phone: insertData.phone,
-              status: insertData.status,
-              role: insertData.role,
-              updatedAt: insertData.updatedAt || new Date(),
-            },
-          })
-          .returning();
+    // Create new user only
+    const insertData = omitUndefined({
+      uuid: parseUUID(userData.uuid),
+      name: userData.name,
+      email: userData.email,
+      passwordDigest: userData.passwordDigest === 'NULL' || userData.passwordDigest === '' ? null : userData.passwordDigest,
+      phone: userData.phone === 'NULL' || userData.phone === '' ? null : userData.phone,
+      status: (userData.status === 'active' || userData.status === 'inactive' ? userData.status : 'active') as 'active' | 'inactive',
+      role: (userData.role === 'admin' || userData.role === 'user' ? userData.role : 'user') as 'admin' | 'user',
+      createdAt: parseDate(userData.createdAt) || undefined,
+      updatedAt: parseDate(userData.updatedAt) || undefined,
+    });
 
-        userIdMap.set(csvId, inserted.id);
-      } catch (error: any) {
-        // If insert fails, try to find existing user by email
-        const existing = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, userData.email))
-          .limit(1);
-        if (existing.length > 0) {
-          userIdMap.set(csvId, existing[0].id);
-        } else {
-          console.error(`   ⚠️  Failed to insert user ${userData.email}:`, error.message);
-        }
+    try {
+      const [inserted] = await db.insert(users).values(insertData as typeof users.$inferInsert).returning();
+      ctx.userIdMap.set(csvId, inserted.id);
+      ctx.seededUserEmails.push(inserted.email);
+    } catch (error: unknown) {
+      console.error(`   ⚠️  Failed to insert user ${userData.email}:`, (error as Error).message);
+    }
+  }
+  console.log(`   ✅ Loaded ${ctx.userIdMap.size} users (${ctx.seededUserEmails.length} created, ${ctx.userIdMap.size - ctx.seededUserEmails.length} already existed)`);
+}
+
+async function seedCampaigns(filePath: string, ctx: SeedContext): Promise<void> {
+  const rows = parseCSV(filePath);
+  console.log(`   Found ${rows.length} campaigns`);
+
+  for (const row of rows) {
+    const csvId = parseInteger(row.id);
+    if (!csvId) continue;
+
+    const campaignData = convertKeysToCamelCase(row);
+    const insertData = omitUndefined({
+      uuid: parseUUID(campaignData.uuid),
+      title: campaignData.title,
+      slug: campaignData.slug,
+      description: campaignData.description === 'NULL' || campaignData.description === '' ? null : campaignData.description,
+      startTime: parseDate(campaignData.startTime)!,
+      endTime: parseDate(campaignData.endTime)!,
+      ticketPrice: parseInteger(campaignData.ticketPrice)!,
+      minimumTickets: parseInteger(campaignData.minimumTickets) ?? 1,
+      paymentType: (campaignData.paymentType === 'direct' || campaignData.paymentType === 'transfer' ? campaignData.paymentType : 'direct') as 'direct' | 'transfer',
+      bankNameOrCode: campaignData.bankNameOrCode === 'NULL' || campaignData.bankNameOrCode === '' ? null : campaignData.bankNameOrCode,
+      accountNumber: campaignData.accountNumber === 'NULL' || campaignData.accountNumber === '' ? null : campaignData.accountNumber,
+      webhookApiKey: campaignData.webhookApiKey === 'NULL' || campaignData.webhookApiKey === '' ? null : campaignData.webhookApiKey,
+      status: (['active', 'drawing', 'completed', 'canceled'].includes(campaignData.status) ? campaignData.status : 'active') as 'active' | 'drawing' | 'completed' | 'canceled',
+      excludeWinningNumbers: parseBoolean(campaignData.excludeWinningNumbers),
+      canceledAt: parseDate(campaignData.canceledAt),
+      createdAt: parseDate(campaignData.createdAt) || undefined,
+      updatedAt: parseDate(campaignData.updatedAt) || undefined,
+    });
+
+    try {
+      const [inserted] = await db
+        .insert(campaigns)
+        .values(insertData as typeof campaigns.$inferInsert)
+        .onConflictDoUpdate({
+          target: campaigns.slug,
+          set: {
+            title: insertData.title,
+            description: insertData.description,
+            startTime: insertData.startTime,
+            endTime: insertData.endTime,
+            ticketPrice: insertData.ticketPrice,
+            paymentType: insertData.paymentType,
+            bankNameOrCode: insertData.bankNameOrCode,
+            accountNumber: insertData.accountNumber,
+            webhookApiKey: insertData.webhookApiKey,
+            status: insertData.status,
+            excludeWinningNumbers: insertData.excludeWinningNumbers,
+            canceledAt: insertData.canceledAt,
+            updatedAt: insertData.updatedAt || new Date(),
+          },
+        })
+        .returning();
+
+      ctx.campaignIdMap.set(csvId, inserted.id);
+    } catch (error: unknown) {
+      const existing = await db
+        .select()
+        .from(campaigns)
+        .where(eq(campaigns.slug, campaignData.slug))
+        .limit(1);
+      if (existing.length > 0) {
+        ctx.campaignIdMap.set(csvId, existing[0].id);
+      } else {
+        console.error(`   ⚠️  Failed to insert campaign ${campaignData.slug}:`, (error as Error).message);
       }
     }
-    console.log(`   ✅ Loaded ${userIdMap.size} users\n`);
+  }
+  console.log(`   ✅ Loaded ${ctx.campaignIdMap.size} campaigns`);
+}
 
-    // 2. Load campaigns
-    console.log('📂 Loading campaigns from 02_campaigns.csv...');
-    const campaignsData = parseCSV(path.join(seedDir, '02_campaigns.csv'));
-    console.log(`   Found ${campaignsData.length} campaigns`);
+async function seedCampaignPrizes(filePath: string, ctx: SeedContext): Promise<number> {
+  const rows = parseCSV(filePath);
+  console.log(`   Found ${rows.length} prizes`);
+  let count = 0;
 
-    for (const row of campaignsData) {
-      const csvId = parseInteger(row.id);
-      if (!csvId) continue;
+  for (const row of rows) {
+    const csvCampaignId = parseInteger(row.campaign_id);
+    if (!csvCampaignId) continue;
 
-      const campaignData = convertKeysToCamelCase(row);
-      const insertData: any = {
-        uuid: parseUUID(campaignData.uuid),
-        title: campaignData.title,
-        slug: campaignData.slug,
-        description: campaignData.description === 'NULL' || campaignData.description === '' ? null : campaignData.description,
-        startTime: parseDate(campaignData.startTime)!,
-        endTime: parseDate(campaignData.endTime)!,
-        ticketPrice: parseInteger(campaignData.ticketPrice)!,
-        paymentType: campaignData.paymentType,
-        bankNameOrCode: campaignData.bankNameOrCode === 'NULL' || campaignData.bankNameOrCode === '' ? null : campaignData.bankNameOrCode,
-        accountNumber: campaignData.accountNumber === 'NULL' || campaignData.accountNumber === '' ? null : campaignData.accountNumber,
-        webhookApiKey: campaignData.webhookApiKey === 'NULL' || campaignData.webhookApiKey === '' ? null : campaignData.webhookApiKey,
-        status: campaignData.status,
-        excludeWinningNumbers: parseBoolean(campaignData.excludeWinningNumbers),
-        canceledAt: parseDate(campaignData.canceledAt),
-        createdAt: parseDate(campaignData.createdAt) || undefined,
-        updatedAt: parseDate(campaignData.updatedAt) || undefined,
-      };
-
-      // Remove undefined values
-      Object.keys(insertData).forEach(
-        (key) => insertData[key] === undefined && delete insertData[key],
-      );
-
-      try {
-        const [inserted] = await db
-          .insert(campaigns)
-          .values(insertData)
-          .onConflictDoUpdate({
-            target: campaigns.slug,
-            set: {
-              title: insertData.title,
-              description: insertData.description,
-              startTime: insertData.startTime,
-              endTime: insertData.endTime,
-              ticketPrice: insertData.ticketPrice,
-              paymentType: insertData.paymentType,
-              bankNameOrCode: insertData.bankNameOrCode,
-              accountNumber: insertData.accountNumber,
-              webhookApiKey: insertData.webhookApiKey,
-              status: insertData.status,
-              excludeWinningNumbers: insertData.excludeWinningNumbers,
-              canceledAt: insertData.canceledAt,
-              updatedAt: insertData.updatedAt || new Date(),
-            },
-          })
-          .returning();
-
-        campaignIdMap.set(csvId, inserted.id);
-      } catch (error: any) {
-        // If insert fails, try to find existing campaign by slug
-        const existing = await db
-          .select()
-          .from(campaigns)
-          .where(eq(campaigns.slug, campaignData.slug))
-          .limit(1);
-        if (existing.length > 0) {
-          campaignIdMap.set(csvId, existing[0].id);
-        } else {
-          console.error(`   ⚠️  Failed to insert campaign ${campaignData.slug}:`, error.message);
-        }
-      }
+    const dbCampaignId = ctx.campaignIdMap.get(csvCampaignId);
+    if (!dbCampaignId) {
+      console.warn(`   ⚠️  Campaign ID ${csvCampaignId} not found, skipping prize`);
+      continue;
     }
-    console.log(`   ✅ Loaded ${campaignIdMap.size} campaigns\n`);
 
-    // 3. Load campaign prizes
-    console.log('📂 Loading campaign prizes from 03_campaign_prizes.csv...');
-    const prizesData = parseCSV(path.join(seedDir, '03_campaign_prizes.csv'));
-    console.log(`   Found ${prizesData.length} prizes`);
+    const prizeData = convertKeysToCamelCase(row);
+    const uuidVal = parseUUID(prizeData.uuid);
+    if (!uuidVal) {
+      console.warn(`   ⚠️  Prize campaign_id=${csvCampaignId} missing uuid, skipping`);
+      continue;
+    }
 
-    let prizesInserted = 0;
-    for (const row of prizesData) {
+    const insertData = omitUndefined({
+      uuid: uuidVal,
+      campaignId: dbCampaignId,
+      title: prizeData.title,
+      prizesCount: parseInteger(prizeData.prizesCount)!,
+      matchingDigits: parseInteger(prizeData.matchingDigits)!,
+      prizeValue: parseInteger(prizeData.prizeValue)!,
+      displayOrder: parseInteger(prizeData.displayOrder) ?? 0,
+      createdAt: parseDate(prizeData.createdAt) || undefined,
+      updatedAt: parseDate(prizeData.updatedAt) || undefined,
+    });
+
+    try {
+      await db
+        .insert(campaignPrizes)
+        .values(insertData as typeof campaignPrizes.$inferInsert)
+        .onConflictDoNothing({ target: campaignPrizes.uuid });
+      count++;
+    } catch (error: unknown) {
+      console.error(`   ⚠️  Failed to insert prize:`, (error as Error).message);
+    }
+  }
+  console.log(`   ✅ Loaded ${count} prizes`);
+  return count;
+}
+
+async function seedTickets(filePath: string, ctx: SeedContext): Promise<number> {
+  const rows = parseCSV(filePath);
+  console.log(`   Found ${rows.length} tickets`);
+  const batchSize = 1000;
+  let count = 0;
+
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const insertBatch: typeof tickets.$inferInsert[] = [];
+
+    for (const row of batch) {
       const csvCampaignId = parseInteger(row.campaign_id);
-      if (!csvCampaignId) continue;
+      const csvUserId = parseInteger(row.user_id);
+      if (!csvCampaignId || !csvUserId) continue;
 
-      const dbCampaignId = campaignIdMap.get(csvCampaignId);
-      if (!dbCampaignId) {
-        console.warn(`   ⚠️  Campaign ID ${csvCampaignId} not found, skipping prize`);
-        continue;
-      }
+      const dbCampaignId = ctx.campaignIdMap.get(csvCampaignId);
+      const dbUserId = ctx.userIdMap.get(csvUserId);
+      if (!dbCampaignId || !dbUserId) continue;
 
-      const prizeData = convertKeysToCamelCase(row);
-      const insertData: any = {
-        uuid: parseUUID(prizeData.uuid),
-        campaignId: dbCampaignId,
-        title: prizeData.title,
-        prizesCount: parseInteger(prizeData.prizesCount)!,
-        matchingDigits: parseInteger(prizeData.matchingDigits)!,
-        prizeValue: parseInteger(prizeData.prizeValue)!,
-        createdAt: parseDate(prizeData.createdAt) || undefined,
-        updatedAt: parseDate(prizeData.updatedAt) || undefined,
-      };
-
-      // Remove undefined values
-      Object.keys(insertData).forEach(
-        (key) => insertData[key] === undefined && delete insertData[key],
-      );
-
-      try {
-        await db.insert(campaignPrizes).values(insertData).onConflictDoNothing();
-        prizesInserted++;
-      } catch (error: any) {
-        console.error(`   ⚠️  Failed to insert prize:`, error.message);
-      }
-    }
-    console.log(`   ✅ Loaded ${prizesInserted} prizes\n`);
-
-    // 4. Load tickets
-    console.log('📂 Loading tickets from 04_tickets.csv...');
-    const ticketsData = parseCSV(path.join(seedDir, '04_tickets.csv'));
-    console.log(`   Found ${ticketsData.length} tickets`);
-
-    let ticketsInserted = 0;
-    const batchSize = 1000;
-    for (let i = 0; i < ticketsData.length; i += batchSize) {
-      const batch = ticketsData.slice(i, i + batchSize);
-      const insertBatch: any[] = [];
-
-      for (const row of batch) {
-        const csvCampaignId = parseInteger(row.campaign_id);
-        const csvUserId = parseInteger(row.user_id);
-        if (!csvCampaignId || !csvUserId) continue;
-
-        const dbCampaignId = campaignIdMap.get(csvCampaignId);
-        const dbUserId = userIdMap.get(csvUserId);
-        if (!dbCampaignId || !dbUserId) {
-          continue;
-        }
-
-        const ticketData = convertKeysToCamelCase(row);
-        const insertData: any = {
+      const ticketData = convertKeysToCamelCase(row);
+      insertBatch.push(
+        omitUndefined({
           uuid: parseUUID(ticketData.uuid),
           campaignId: dbCampaignId,
           userId: dbUserId,
@@ -374,33 +374,113 @@ async function seed() {
           isWinning: parseBoolean(ticketData.isWinning),
           createdAt: parseDate(ticketData.createdAt) || undefined,
           updatedAt: parseDate(ticketData.updatedAt) || undefined,
-        };
+        }) as typeof tickets.$inferInsert,
+      );
+    }
 
-        // Remove undefined values
-        Object.keys(insertData).forEach(
-          (key) => insertData[key] === undefined && delete insertData[key],
-        );
-
-        insertBatch.push(insertData);
-      }
-
-      if (insertBatch.length > 0) {
-        try {
-          await db.insert(tickets).values(insertBatch).onConflictDoNothing();
-          ticketsInserted += insertBatch.length;
-        } catch (error: any) {
-          console.error(`   ⚠️  Failed to insert batch:`, error.message);
-        }
+    if (insertBatch.length > 0) {
+      try {
+        await db
+          .insert(tickets)
+          .values(insertBatch)
+          .onConflictDoNothing({
+            target: [tickets.campaignId, tickets.ticketNumber],
+          });
+        count += insertBatch.length;
+      } catch (error: unknown) {
+        console.error(`   ⚠️  Failed to insert ticket batch:`, (error as Error).message);
       }
     }
-    console.log(`   ✅ Loaded ${ticketsInserted} tickets\n`);
+  }
+  console.log(`   ✅ Loaded ${count} tickets`);
+  return count;
+}
+
+/** Update password only for users that were in the seed file (avoid resetting other accounts). */
+async function updateSeededUsersPassword(emails: string[]): Promise<void> {
+  if (emails.length === 0) return;
+  const hashed = await bcrypt.hash(DEFAULT_PASSWORD, SALT_ROUNDS);
+  for (const email of emails) {
+    await db.update(users).set({ passwordDigest: hashed, updatedAt: new Date() }).where(eq(users.email, email));
+  }
+  console.log(`   ✅ Set password for ${emails.length} seeded user(s) (DEFAULT_PASSWORD)`);
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+const TABLE_HANDLERS: Record<
+  string,
+  (filePath: string, ctx: SeedContext) => Promise<number | void>
+> = {
+  users: (p, ctx) => seedUsers(p, ctx),
+  campaigns: (p, ctx) => seedCampaigns(p, ctx),
+  campaign_prizes: (p, ctx) => seedCampaignPrizes(p, ctx),
+  campaignPrizes: (p, ctx) => seedCampaignPrizes(p, ctx),
+  tickets: (p, ctx) => seedTickets(p, ctx),
+};
+
+async function seed() {
+  try {
+    const env = process.env.NODE_ENV || 'development';
+    const seedDir = getSeedDir();
+    const csvFiles = getCsvFiles(seedDir);
+
+    console.log(`🌱 Seeding database (NODE_ENV=${env}) from ${path.relative(process.cwd(), seedDir || '')}...\n`);
+
+    if (csvFiles.length === 0) {
+      console.log('   No CSV files found. Skipping seed.');
+      process.exit(0);
+      return;
+    }
+
+    const ctx: SeedContext = {
+      userIdMap: new Map(),
+      campaignIdMap: new Map(),
+      seededUserEmails: [],
+    };
+
+    const stats: { users: number; campaigns: number; prizes: number; tickets: number } = {
+      users: 0,
+      campaigns: 0,
+      prizes: 0,
+      tickets: 0,
+    };
+
+    for (const filename of csvFiles) {
+      const key = tableKeyFromFilename(filename);
+      const handler = TABLE_HANDLERS[key];
+      if (!handler) {
+        console.warn(`   ⚠️  No handler for table "${key}" (file ${filename}), skipping.`);
+        continue;
+      }
+
+      const filePath = path.join(seedDir!, filename);
+      console.log(`📂 Loading ${key} from ${filename}...`);
+      const result = await handler(filePath, ctx);
+      if (typeof result === 'number') {
+        if (key === 'campaign_prizes' || key === 'campaignPrizes') stats.prizes = result;
+        else if (key === 'tickets') stats.tickets = result;
+      }
+      if (key === 'users') stats.users = ctx.userIdMap.size;
+      if (key === 'campaigns') stats.campaigns = ctx.campaignIdMap.size;
+      console.log('');
+    }
+
+    // Only update password for users that were in the seed file (never touch other accounts)
+    if (ctx.seededUserEmails.length > 0) {
+      console.log('🔐 Updating password for seeded users only...');
+      await updateSeededUsersPassword(ctx.seededUserEmails);
+      console.log('');
+    }
 
     console.log('✅ Database seeded successfully!');
     console.log(`\n📊 Summary:`);
-    console.log(`   - Users: ${userIdMap.size}`);
-    console.log(`   - Campaigns: ${campaignIdMap.size}`);
-    console.log(`   - Prizes: ${prizesInserted}`);
-    console.log(`   - Tickets: ${ticketsInserted}\n`);
+    console.log(`   - Users: ${stats.users}`);
+    console.log(`   - Campaigns: ${stats.campaigns}`);
+    console.log(`   - Prizes: ${stats.prizes}`);
+    console.log(`   - Tickets: ${stats.tickets}\n`);
 
     process.exit(0);
   } catch (error) {

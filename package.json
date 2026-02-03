@@ -13,6 +13,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:reset": "tsx scripts/reset-migrations.ts && drizzle-kit migrate",
     "db:seed": "tsx scripts/seed.ts",
+    "db:ensure": "tsx scripts/ensure-db.ts",
+    "deploy:vercel": "npm run db:ensure && npm run db:migrate && npm run db:seed",
     "test:ticket-image": "tsx scripts/test-ticket-image.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
