@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useForm, useFieldArray, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import ReactMarkdown from 'react-markdown';
 import { Trash2, Plus, Info, Gift, CreditCard, Copy, Check, RotateCcw, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -233,6 +234,7 @@ export function CampaignForm({
   mode,
 }: CampaignFormProps) {
   const [autoSlug, setAutoSlug] = useState(true);
+  const [descriptionPreviewMode, setDescriptionPreviewMode] = useState(false);
   const [copiedWebhookKey, setCopiedWebhookKey] = useState(false);
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
   const [webhookJWT, setWebhookJWT] = useState<string | null>(
@@ -483,13 +485,36 @@ export function CampaignForm({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description (Markdown)</FormLabel>
+                  <div className="flex items-center gap-2">
+                    <FormLabel>Description</FormLabel>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto px-1.5 py-0 text-muted-foreground hover:text-foreground font-normal"
+                      onClick={() => setDescriptionPreviewMode((prev) => !prev)}
+                    >
+                      {descriptionPreviewMode ? 'Edit' : 'Preview'}
+                    </Button>
+                  </div>
                   <FormControl>
-                    <Textarea
-                      placeholder="Enter campaign description (supports Markdown)"
-                      rows={6}
-                      {...field}
-                    />
+                    {descriptionPreviewMode ? (
+                      <div className="whitespace-pre-line min-h-[26rem] rounded-md border border-input bg-muted/30 px-3 py-2 text-sm ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                          {field.value ? (
+                            <ReactMarkdown>{field.value}</ReactMarkdown>
+                          ) : (
+                            <p className="text-muted-foreground italic">No content to preview.</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <Textarea
+                        placeholder="Enter campaign description (supports Markdown)"
+                        rows={26}
+                        {...field}
+                      />
+                    )}
                   </FormControl>
                   <FormDescription>You can use Markdown syntax for formatting</FormDescription>
                   <FormMessage />

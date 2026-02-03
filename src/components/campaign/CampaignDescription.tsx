@@ -6,11 +6,11 @@ interface CampaignDescriptionProps {
 
 /**
  * CampaignDescription Component
- * 
+ *
  * Renders campaign description as markdown with:
  * - Safe HTML rendering
  * - Styled markdown elements
- * 
+ *
  * Architecture:
  * - Single responsibility: Render markdown content
  * - Uses react-markdown for safe rendering
@@ -23,8 +23,7 @@ export function CampaignDescription({ description }: CampaignDescriptionProps) {
 
   return (
     <div className="bg-white rounded-lg border shadow-sm p-6">
-      <h2 className="text-xl font-semibold mb-4">Mô tả chi tiết</h2>
-      <div className="prose prose-gray max-w-none">
+      <div className="whitespace-pre-line prose prose-gray max-w-none">
         <ReactMarkdown
           components={{
             h1: ({ children }) => (
