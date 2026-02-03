@@ -13,6 +13,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:reset": "tsx scripts/reset-migrations.ts && drizzle-kit migrate",
     "db:seed": "tsx scripts/seed.ts",
+    "test:ticket-image": "tsx scripts/test-ticket-image.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage"

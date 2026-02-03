@@ -47,8 +47,8 @@ export class TicketImageService {
     campaign?: Pick<Campaign, 'title'>
   ): Promise<Buffer> {
     try {
-      // 46pt in Pango = size 46000 (thousandths of a point). Black text, transparent background.
-      const textMarkup = `<span size="46000" foreground="black">${escapePangoMarkup(ticket.ticketNumber)}</span>`;
+      // 46pt, đen, letter spacing. Chỉ vẽ số vé.
+      const textMarkup = `<span size="46000" foreground="black" letter_spacing="15600">${escapePangoMarkup(ticket.ticketNumber)}</span>`;
 
       const image = await sharp(this.templatePath)
         .composite([
@@ -60,8 +60,8 @@ export class TicketImageService {
                 rgba: true,
               },
             },
-            left: 252,
-            top: 186,
+            left: 259,
+            top: 197,
           },
         ])
         .png()
