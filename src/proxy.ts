@@ -15,9 +15,11 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow login page and auth API routes
+  // Allow login, forgot-password, reset-password pages and auth API routes
   if (
     pathname === '/admin/login' ||
+    pathname === '/admin/forgot-password' ||
+    pathname === '/admin/reset-password' ||
     pathname.startsWith('/api/v1/admin/auth/')
   ) {
     return NextResponse.next();
