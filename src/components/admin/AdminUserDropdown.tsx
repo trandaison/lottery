@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -52,6 +53,17 @@ export function AdminUserDropdown() {
               {user.email}
             </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            asChild
+          >
+            <Link href="/admin/profile" onClick={() => setOpen(false)}>
+              <User className="mr-2 size-4" aria-hidden />
+              My profile
+            </Link>
+          </Button>
           <Button
             variant="outline"
             size="sm"

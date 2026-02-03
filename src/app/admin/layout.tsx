@@ -3,7 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, LogOut, Menu, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/context/AuthContext';
 import { AdminBreadcrumbs } from '@/components/admin/AdminBreadcrumbs';
@@ -100,6 +100,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 <LayoutDashboard className="mr-2 size-4" aria-hidden />
                 Campaigns
+              </Button>
+            </Link>
+            <Link href="/admin/users">
+              <Button
+                variant={pathname?.startsWith('/admin/users') ? 'secondary' : 'ghost'}
+                className="w-full justify-start"
+                aria-current={pathname?.startsWith('/admin/users') ? 'page' : undefined}
+              >
+                <Users className="mr-2 size-4" aria-hidden />
+                Users
               </Button>
             </Link>
           </nav>

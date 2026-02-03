@@ -25,6 +25,10 @@ export function AdminBreadcrumbs() {
     const isLast = i === segments.length - 1;
     if (seg === 'campaigns') {
       items.push({ label: 'Campaigns', href: pathSoFar, isLast });
+    } else if (seg === 'users') {
+      items.push({ label: 'Users', href: pathSoFar, isLast });
+    } else if (seg === 'profile') {
+      items.push({ label: 'Profile', href: pathSoFar, isLast });
     } else if (seg === 'new') {
       items.push({ label: 'New', href: pathSoFar, isLast });
     } else if (seg === 'edit') {
@@ -36,8 +40,11 @@ export function AdminBreadcrumbs() {
     } else if (seg === 'tickets') {
       items.push({ label: 'Tickets', href: pathSoFar, isLast });
     } else if (/^\d+$/.test(seg)) {
+      const prev = segments[i - 1];
       const next = segments[i + 1];
-      if (next === 'edit' || next === 'draw' || next === 'orders' || next === 'tickets') {
+      const underCampaigns = prev === 'campaigns' && (next === 'edit' || next === 'draw' || next === 'orders' || next === 'tickets');
+      const underUsers = prev === 'users' && next === 'edit';
+      if (underCampaigns || underUsers) {
         items.push({ label: seg, href: pathSoFar, isLast });
       }
     }
