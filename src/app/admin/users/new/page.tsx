@@ -1,25 +1,25 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { UserForm } from '@/components/admin/UserForm';
+import { UserForm, type CreateValues, type EditValues } from '@/components/admin/UserForm';
 import { toast } from 'sonner';
-import type { CreateUserInput } from '@/lib/validations/user';
 
 export default function NewUserPage() {
   const router = useRouter();
 
-  const handleSubmit = async (data: CreateUserInput & { confirmPassword?: string }) => {
+  const handleSubmit = async (data: CreateValues | EditValues) => {
+    const payload = data as CreateValues;
     try {
       const response = await fetch('/api/v1/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: data.name,
-          email: data.email,
-          password: data.password,
-          confirmPassword: data.confirmPassword,
-          phone: data.phone || null,
-          role: data.role,
+          name: payload.name,
+          email: payload.email,
+          password: payload.password,
+          confirmPassword: payload.confirmPassword,
+          phone: payload.phone ?? null,
+          role: payload.role,
         }),
       });
       const result = await response.json();

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Trash2, Plus, Info, Gift, CreditCard, Copy, Check, RotateCcw, GripVertical } from 'lucide-react';
@@ -241,7 +241,7 @@ export function CampaignForm({
   const [isReissuing, setIsReissuing] = useState(false);
 
   const form = useForm<CampaignFormValues>({
-    resolver: zodResolver(campaignFormSchema),
+    resolver: zodResolver(campaignFormSchema) as Resolver<CampaignFormValues>,
     defaultValues: campaign
       ? {
           title: campaign.title,

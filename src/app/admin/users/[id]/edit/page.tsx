@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserForm } from '@/components/admin/UserForm';
+import { UserForm, type CreateValues, type EditValues } from '@/components/admin/UserForm';
 import type { User } from '@/db/schema';
-import type { UpdateUserInput } from '@/lib/validations/user';
 import { toast } from 'sonner';
 import { use } from 'react';
 
@@ -42,18 +41,19 @@ export default function EditUserPage({ params }: PageProps) {
     fetchUser();
   }, [resolvedParams.id, router]);
 
-  const handleSubmit = async (data: UpdateUserInput) => {
+  const handleSubmit = async (data: CreateValues | EditValues) => {
+    const payload = data as EditValues;
     try {
       const response = await fetch(`/api/v1/admin/users/${resolvedParams.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: data.name,
-          email: data.email,
-          password: data.password || undefined,
-          phone: data.phone ?? null,
-          status: data.status,
-          role: data.role,
+          name: payload.name,
+          email: payload.email,
+          password: payload.password || undefined,
+          phone: payload.phone ?? null,
+          status: payload.status,
+          role: payload.role,
         }),
       });
       const result = await response.json();

@@ -49,8 +49,8 @@ const editSchema = z.object({
   role: z.enum(['admin', 'user']),
 });
 
-type CreateValues = z.infer<typeof createSchema>;
-type EditValues = z.infer<typeof editSchema>;
+export type CreateValues = z.infer<typeof createSchema>;
+export type EditValues = z.infer<typeof editSchema>;
 
 type UserPublic = Omit<User, 'passwordDigest'>;
 
