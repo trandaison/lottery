@@ -50,13 +50,15 @@ export class TicketImageService {
       // 46pt, đen, letter spacing. Chỉ vẽ số vé.
       const textMarkup = `<span size="46000" foreground="black" letter_spacing="15600">${escapePangoMarkup(ticket.ticketNumber)}</span>`;
 
+      // Use generic "Sans" so Pango picks a system sans-serif font available on Linux (Vercel).
+      // "Arial" is not installed on Vercel → text renders as squares (missing font).
       const image = await sharp(this.templatePath)
         .composite([
           {
             input: {
               text: {
                 text: textMarkup,
-                font: 'Arial',
+                font: 'Sans',
                 rgba: true,
               },
             },
