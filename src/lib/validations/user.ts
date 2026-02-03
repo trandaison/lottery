@@ -34,14 +34,21 @@ export const profileUpdateSchema = z
   .object({
     name: z.string().min(1, 'Name is required').max(255),
     email: z.string().email('Invalid email').max(255),
-    password: z.string().min(6).max(255).optional(),
-    confirmPassword: z.string().optional(),
+    password: z.string().min(6).max(255).optional().or(z.literal('')),
+    confirmPassword: z.string().optional().or(z.literal('')),
     phone: phoneOptional,
   })
-  .refine((data) => !data.password || data.password === data.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  });
+  .refine(
+    (data) => {
+      const p = (data.password ?? '').trim();
+      const c = (data.confirmPassword ?? '').trim();
+      if (p === '') return true; // no password change
+      // Client may not send confirmPassword in body; if only password is set, accept (client already validated)
+      if (c === '') return true;
+      return p === c;
+    },
+    { message: 'Passwords do not match', path: ['confirmPassword'] },
+  );
 
 export const userFiltersSchema = z.object({
   search: z.string().optional(),

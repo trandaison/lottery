@@ -23,13 +23,18 @@ const profileSchema = z
     name: z.string().min(1, 'Name is required').max(255),
     email: z.string().email('Invalid email').max(255),
     password: z.string().min(6).max(255).optional().or(z.literal('')),
-    confirmPassword: z.string().optional(),
+    confirmPassword: z.string().optional().or(z.literal('')),
     phone: z.string().max(20).optional(),
   })
-  .refine((data) => !data.password || data.password === data.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  });
+  .refine(
+    (data) => {
+      const p = (data.password ?? '').trim();
+      const c = (data.confirmPassword ?? '').trim();
+      if (p === '') return true; // no password change
+      return p === c;
+    },
+    { message: 'Passwords do not match', path: ['confirmPassword'] },
+  );
 
 type ProfileValues = z.infer<typeof profileSchema>;
 
