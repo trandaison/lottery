@@ -13,7 +13,7 @@ Forgot-password flows should use a cryptographically secure token stored in Redi
 - Use atomic SET with EX (e.g. `SET key value EX 3600`) so storage and TTL are set together.
 - **Recommended**: Treat the token as one-time-use: delete the Redis key after a successful password reset.
 
-- Source: [How to properly create a password reset token?](https://security.stackexchange.com/questions/213975/how-to-properly-create-a-password-reset-token)  
+- Source: [How to properly create a password reset token?](https://security.stackexchange.com/questions/213975/how-to-properly-create-a-password-reset-token)
 - Confidence: High
 
 ### Finding 2: Redis TTL and key design
@@ -22,7 +22,7 @@ Forgot-password flows should use a cryptographically secure token stored in Redi
 - Set TTL when writing (e.g. 3600 seconds). Redis automatically removes keys when TTL expires, avoiding manual cleanup.
 - Upstash Redis supports `set(key, value, { ex: seconds })` for atomic set-with-expiry.
 
-- Source: [Best Practices for Using Redis EXPIRE and TTL](https://devops.aibit.im/article/best-practices-redis-expire-ttl)  
+- Source: [Best Practices for Using Redis EXPIRE and TTL](https://devops.aibit.im/article/best-practices-redis-expire-ttl)
 - Confidence: High
 
 ### Finding 3: Rate limiting per email with Redis
@@ -31,7 +31,7 @@ Forgot-password flows should use a cryptographically secure token stored in Redi
 - For “1 request per minute”: before sending email, check if the key exists and has not expired (TTL 60 seconds). If it exists and is still valid, return a generic “try again later” response without sending email. If it does not exist or has expired, set the key with TTL 60 seconds and proceed.
 - Alternative: INCR + EXPIRE (increment counter, set TTL on first request). Allow only when counter is 1 within the window. For “1 per minute”, a simple “set key with ex 60” and “get key” to decide allow/deny is sufficient.
 
-- Source: [How to build a Rate Limiter using Redis](https://redis.io/learn/howtos/ratelimiting), [How can I limit the login attempts using redis?](https://stackoverflow.com/questions/21020804/how-can-i-limit-the-login-attempts-using-redis)  
+- Source: [How to build a Rate Limiter using Redis](https://redis.io/learn/howtos/ratelimiting), [How can I limit the login attempts using redis?](https://stackoverflow.com/questions/21020804/how-can-i-limit-the-login-attempts-using-redis)
 - Confidence: High
 
 ### Finding 4: Security and UX
@@ -40,7 +40,7 @@ Forgot-password flows should use a cryptographically secure token stored in Redi
 - Invalidate the token after successful reset (delete from Redis). Optionally allow only one valid token per user (overwrite previous token when a new one is requested).
 - Reset URL should use HTTPS in production and contain only the token (no sensitive data).
 
-- Source: [How to Implement a Forgot Password Flow? Complete Guide](https://supertokens.com/blog/implementing-a-forgot-password-flow)  
+- Source: [How to Implement a Forgot Password Flow? Complete Guide](https://supertokens.com/blog/implementing-a-forgot-password-flow)
 - Confidence: High
 
 ## Recommendations
@@ -52,8 +52,8 @@ Forgot-password flows should use a cryptographically secure token stored in Redi
 
 ## Sources
 
-1. [How to properly create a password reset token?](https://security.stackexchange.com/questions/213975/how-to-properly-create-a-password-reset-token) – Security Stack Exchange  
-2. [Best Practices for Using Redis EXPIRE and TTL](https://devops.aibit.im/article/best-practices-redis-expire-ttl)  
-3. [How to build a Rate Limiter using Redis](https://redis.io/learn/howtos/ratelimiting) – Redis  
-4. [How to Implement a Forgot Password Flow? Complete Guide](https://supertokens.com/blog/implementing-a-forgot-password-flow) – SuperTokens  
-5. [How can I limit the login attempts using redis?](https://stackoverflow.com/questions/21020804/how-can-i-limit-the-login-attempts-using-redis) – Stack Overflow  
+1. [How to properly create a password reset token?](https://security.stackexchange.com/questions/213975/how-to-properly-create-a-password-reset-token) – Security Stack Exchange
+2. [Best Practices for Using Redis EXPIRE and TTL](https://devops.aibit.im/article/best-practices-redis-expire-ttl)
+3. [How to build a Rate Limiter using Redis](https://redis.io/learn/howtos/ratelimiting) – Redis
+4. [How to Implement a Forgot Password Flow? Complete Guide](https://supertokens.com/blog/implementing-a-forgot-password-flow) – SuperTokens
+5. [How can I limit the login attempts using redis?](https://stackoverflow.com/questions/21020804/how-can-i-limit-the-login-attempts-using-redis) – Stack Overflow

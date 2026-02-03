@@ -32,7 +32,7 @@ Admin login with email and password. Creates session in Redis.
 **Implementation Flow**:
 1. Validate credentials (bcrypt compare)
 2. Generate token_base (UUID v4)
-3. Store in Redis: 
+3. Store in Redis:
    - Key: `session:{token_base}`
    - Value: `{id, role, timestamp, remember_me}`
    - TTL: 7 days if remember_me, else 2 hours
@@ -57,7 +57,7 @@ Admin login with email and password. Creates session in Redis.
 }
 ```
 
-**Note**: 
+**Note**:
 - `id` is internal BIGSERIAL primary key
 - `uuid` is for external references if needed
 
@@ -623,7 +623,7 @@ Purchase tickets for a campaign.
 }
 ```
 
-**Note**: 
+**Note**:
 - Ticket numbers NOT included in response for "transfer" payment
 - Ticket numbers generated ONLY after payment success
 - For "direct" payment, tickets created immediately and included in response
@@ -657,7 +657,7 @@ Get order status by payment reference ID. Used for polling.
 
 **Access**: Public
 
-**Polling**: 
+**Polling**:
 - Client should poll every 3 seconds while payment_status = "pending"
 - Stop polling when status changes to "success" or "failed"
 - Show timeout error after 10 minutes
@@ -695,7 +695,7 @@ Get order status by payment reference ID. Used for polling.
 }
 ```
 
-**Note**: 
+**Note**:
 - Response includes full ticket objects (with `id` and `uuid`)
 - `ticketNumber` is the 6-digit lottery number
 
@@ -712,7 +712,7 @@ const pollOrderStatus = async (referenceId) => {
   const interval = setInterval(async () => {
     const response = await fetch(`/api/v1/orders/${referenceId}`);
     const { order } = response.data;
-    
+
     if (order.paymentStatus === 'success') {
       clearInterval(interval);
       redirectToSuccessPage(order);
@@ -788,7 +788,7 @@ Get prizes for a campaign with current draw status.
 }
 ```
 
-**Note**: 
+**Note**:
 - All IDs are now BIGSERIAL integers
 - UUIDs included for external references
 - `winningNumbers[].number` stored WITHOUT left-padding zeros
@@ -889,7 +889,7 @@ Draw a winning number for a prize (query-first approach).
 }
 ```
 
-**Note**: 
+**Note**:
 - Winning number determined by server query FIRST
 - Winning number stored WITHOUT left-padding zeros (e.g., "321" not "000321")
 - Matching is from RIGHT to LEFT (ticket "123321" matches winning "321")
@@ -930,7 +930,7 @@ Delete a winning number (redo/clear a prize draw).
 }
 ```
 
-**Note**: 
+**Note**:
 - Use the winning_number `id` returned from `POST /api/v1/admin/campaigns/:campaignId/draw`
 - This replaces the old "redo" endpoint
 
@@ -1035,7 +1035,7 @@ Order already processed (idempotency):
    - Stores `ticket_id` (FK to tickets.id), NOT ticket_number
 5. Triggers email sending job with ticket images
 
-**Note**: 
+**Note**:
 - JWT must have campaign UUID as subject
 - Webhook response codes:
   - 200: Success
