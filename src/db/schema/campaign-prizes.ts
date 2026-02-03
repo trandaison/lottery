@@ -26,6 +26,7 @@ export const campaignPrizes = pgTable(
     prizesCount: integer('prizes_count').notNull(),
     matchingDigits: integer('matching_digits').notNull(), // 1-6
     prizeValue: integer('prize_value').notNull(), // VND
+    displayOrder: integer('display_order').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

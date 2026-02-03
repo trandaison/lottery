@@ -42,7 +42,7 @@ export async function generateMetadata({
 
 /**
  * Public Campaign Detail Page
- * 
+ *
  * Displays complete campaign information with:
  * - Campaign header (title, status, dates, price)
  * - Campaign statistics (tickets sold, participants, revenue)
@@ -50,12 +50,12 @@ export async function generateMetadata({
  * - Campaign description (markdown)
  * - Prize table
  * - Conditional purchase form
- * 
+ *
  * Architecture:
  * - Server-side rendering for SEO and performance
  * - Component composition for clean code
  * - Conditional rendering based on campaign status and time
- * 
+ *
  * Display Logic:
  * - Before start_time: Show countdown, hide purchase form
  * - Between start/end time + status='active': Show purchase form
@@ -100,7 +100,7 @@ export default async function CampaignPage({ params }: CampaignPageProps) {
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-8">
           {/* Statistics */}
-          <CampaignStats stats={stats} />
+          <CampaignStats stats={stats} minimumTickets={campaign.minimumTickets ?? 1} />
 
           {/* Countdown Timer - Only show before start time and if active */}
           {showCountdown && (
@@ -130,6 +130,7 @@ export default async function CampaignPage({ params }: CampaignPageProps) {
                   <PurchaseForm
                     campaignSlug={campaign.slug}
                     ticketPrice={campaign.ticketPrice}
+                    minimumTickets={campaign.minimumTickets ?? 1}
                   />
                 ) : (
                   <PurchaseFormPlaceholder

@@ -117,6 +117,7 @@ export class CampaignService {
         .values(
           prizes.map((prize) => ({
             ...prize,
+            displayOrder: prize.displayOrder ?? 0,
             campaignId: campaign.id,
           }))
         )
@@ -191,6 +192,7 @@ export class CampaignService {
           .values(
             prizes.map((prize) => ({
               ...prize,
+              displayOrder: prize.displayOrder ?? 0,
               campaignId: id,
             }))
           )
@@ -201,7 +203,7 @@ export class CampaignService {
           .select()
           .from(campaignPrizes)
           .where(eq(campaignPrizes.campaignId, id))
-          .orderBy(asc(campaignPrizes.matchingDigits), asc(campaignPrizes.createdAt));
+          .orderBy(asc(campaignPrizes.displayOrder), asc(campaignPrizes.matchingDigits), asc(campaignPrizes.createdAt));
       }
 
       return {
@@ -345,7 +347,7 @@ export class CampaignService {
       .select()
       .from(campaignPrizes)
       .where(eq(campaignPrizes.campaignId, id))
-      .orderBy(asc(campaignPrizes.matchingDigits), asc(campaignPrizes.createdAt));
+      .orderBy(asc(campaignPrizes.displayOrder), asc(campaignPrizes.matchingDigits), asc(campaignPrizes.createdAt));
 
     return {
       ...campaign,
@@ -371,7 +373,7 @@ export class CampaignService {
       .select()
       .from(campaignPrizes)
       .where(eq(campaignPrizes.campaignId, campaign.id))
-      .orderBy(asc(campaignPrizes.matchingDigits), asc(campaignPrizes.createdAt));
+      .orderBy(asc(campaignPrizes.displayOrder), asc(campaignPrizes.matchingDigits), asc(campaignPrizes.createdAt));
 
     return {
       ...campaign,
@@ -456,7 +458,7 @@ export class CampaignService {
           .select()
           .from(campaignPrizes)
           .where(eq(campaignPrizes.campaignId, campaign.id))
-          .orderBy(asc(campaignPrizes.matchingDigits), asc(campaignPrizes.createdAt));
+          .orderBy(asc(campaignPrizes.displayOrder), asc(campaignPrizes.matchingDigits), asc(campaignPrizes.createdAt));
 
         return {
           ...campaign,

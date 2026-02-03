@@ -29,6 +29,13 @@
       "when": 1769524045165,
       "tag": "0003_slippery_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1769600000000,
+      "tag": "0004_display_order_minimum_tickets",
+      "breakpoints": true
     }
   ]
 }

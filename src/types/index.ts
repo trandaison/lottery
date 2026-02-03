@@ -37,6 +37,7 @@ export interface CampaignWithPrizes {
   startTime: Date;
   endTime: Date;
   ticketPrice: number;
+  minimumTickets: number;
   paymentType: 'direct' | 'transfer';
   bankNameOrCode: string | null;
   accountNumber: string | null;
@@ -61,6 +62,7 @@ export interface CampaignPrizeDTO {
   prizesCount: number;
   matchingDigits: number;
   prizeValue: number;
+  displayOrder: number;
   createdAt: Date;
   updatedAt: Date;
   winningNumber?: WinningNumberDTO;

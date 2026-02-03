@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Trash2, Plus, Info, Gift, CreditCard, Copy, Check, RotateCcw } from 'lucide-react';
+import { Trash2, Plus, Info, Gift, CreditCard, Copy, Check, RotateCcw, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,6 +27,23 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { CampaignWithPrizes } from '@/types';
 
 // Form schema matching backend validation
@@ -38,6 +55,7 @@ const campaignFormSchema = z
     startTime: z.date({ message: 'Start time is required' }),
     endTime: z.date({ message: 'End time is required' }),
     ticketPrice: z.number().int().positive('Ticket price must be positive'),
+    minimumTickets: z.number().int().min(1).default(1),
     status: z.enum(['active', 'drawing', 'completed', 'canceled']),
     excludeWinningNumbers: z.boolean(),
     paymentType: z.enum(['direct', 'transfer']),
@@ -46,10 +64,12 @@ const campaignFormSchema = z
     prizes: z
       .array(
         z.object({
+          _uid: z.string().optional(), // client-only stable id for drag key/sortable
           title: z.string().min(1, 'Prize title is required').max(255),
           prizesCount: z.number().int().positive('Prize count must be positive'),
           matchingDigits: z.number().int().min(1).max(6),
           prizeValue: z.number().int().positive('Prize value must be positive'),
+          displayOrder: z.number().int().min(0),
         })
       )
       .min(1, 'At least one prize is required'),
@@ -72,6 +92,130 @@ const campaignFormSchema = z
   );
 
 type CampaignFormValues = z.infer<typeof campaignFormSchema>;
+
+interface SortablePrizeCardProps {
+  id: string;
+  index: number;
+  form: ReturnType<typeof useForm<CampaignFormValues>>;
+  onRemove: () => void;
+  canRemove: boolean;
+}
+
+function SortablePrizeCard({ id, index, form, onRemove, canRemove }: SortablePrizeCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <Card ref={setNodeRef} style={style} className={isDragging ? 'opacity-60 p-0!' : 'p-0!'}>
+      <CardContent className="px-4 py-3 flex gap-4">
+        <div
+          className="flex items-center cursor-grab active:cursor-grabbing touch-none"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <div className="grid grid-cols-12 gap-2 items-center">
+          <div className="col-span-5">
+            <FormField
+              control={form.control}
+              name={`prizes.${index}.title`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs">Prize Title</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Giải nhất" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className="col-span-2">
+            <FormField
+              control={form.control}
+              name={`prizes.${index}.prizesCount`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs">Winners</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder="1"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className="col-span-2">
+            <FormField
+              control={form.control}
+              name={`prizes.${index}.matchingDigits`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs">Digits</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={6}
+                      placeholder="6"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className="col-span-3 flex items-end gap-1">
+            <div className="flex-1">
+              <FormField
+                control={form.control}
+                name={`prizes.${index}.prizeValue`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Value (VND)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="1000000"
+                        {...field}
+                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            {canRemove && (
+              <Button type="button" variant="ghost" size="icon" onClick={onRemove} className="shrink-0 mb-1">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 interface CampaignFormProps {
   campaign?: CampaignWithPrizes;
@@ -106,16 +250,19 @@ export function CampaignForm({
           startTime: new Date(campaign.startTime),
           endTime: new Date(campaign.endTime),
           ticketPrice: campaign.ticketPrice,
+          minimumTickets: campaign.minimumTickets ?? 1,
           status: campaign.status,
           excludeWinningNumbers: campaign.excludeWinningNumbers,
           paymentType: campaign.paymentType,
           bankNameOrCode: campaign.bankNameOrCode || '',
           accountNumber: campaign.accountNumber || '',
-          prizes: campaign.prizes.map((p) => ({
+          prizes: campaign.prizes.map((p, index) => ({
+            _uid: `prize-${(p as { id?: number }).id ?? index}`,
             title: p.title,
             prizesCount: p.prizesCount,
             matchingDigits: p.matchingDigits,
             prizeValue: p.prizeValue,
+            displayOrder: (p as { displayOrder?: number }).displayOrder ?? index,
           })),
         }
       : {
@@ -125,6 +272,7 @@ export function CampaignForm({
           startTime: new Date(),
           endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           ticketPrice: 10000,
+          minimumTickets: 1,
           status: 'active' as const,
           excludeWinningNumbers: true,
           paymentType: 'direct' as const,
@@ -132,10 +280,12 @@ export function CampaignForm({
           accountNumber: '',
           prizes: [
             {
+              _uid: `prize-${Date.now()}-0`,
               title: 'Giải nhất',
               prizesCount: 1,
               matchingDigits: 6,
               prizeValue: 1000000,
+              displayOrder: 0,
             },
           ],
         },
@@ -146,8 +296,30 @@ export function CampaignForm({
     name: 'prizes',
   });
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const prizes = form.getValues('prizes');
+      const oldIndex = prizes.findIndex((p) => p._uid === active.id);
+      const newIndex = prizes.findIndex((p) => p._uid === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reordered = arrayMove([...prizes], oldIndex, newIndex);
+        reordered.forEach((p, i) => {
+          p.displayOrder = i;
+        });
+        form.setValue('prizes', reordered);
+      }
+    }
+  };
+
   const paymentType = form.watch('paymentType');
   const title = form.watch('title');
+  const prizesSnapshot = form.watch('prizes') as Array<{ _uid?: string }>;
 
   // Initialize webhook JWT from campaign prop
   useEffect(() => {
@@ -240,10 +412,10 @@ export function CampaignForm({
   }, [title, autoSlug, form, mode]);
 
   const handleSubmit = async (data: CampaignFormValues) => {
-    console.log('Form submitted with data:', data);
-    console.log('Form validation errors:', form.formState.errors);
+    const { prizes, ...rest } = data;
+    const prizesForApi = prizes.map(({ _uid, ...p }) => p);
     try {
-      await onSubmit(data);
+      await onSubmit({ ...rest, prizes: prizesForApi });
     } catch (error) {
       console.error('Form submission error:', error);
     }
@@ -385,6 +557,26 @@ export function CampaignForm({
 
               <FormField
                 control={form.control}
+                name="minimumTickets"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Minimum Tickets</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="1"
+                        {...field}
+                        onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name="status"
                 render={({ field }) => (
                   <FormItem>
@@ -422,7 +614,7 @@ export function CampaignForm({
               control={form.control}
               name="excludeWinningNumbers"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                <FormItem className="inline-flex gap-16 flex-row items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
                     <FormLabel className="text-base">Exclude Winning Numbers</FormLabel>
                     <FormDescription>
@@ -437,102 +629,30 @@ export function CampaignForm({
             />
 
             <div className="space-y-4">
-              {fields.map((field, index) => (
-                <Card key={field.id}>
-                  <CardContent className="px-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium">Prize #{index + 1}</h4>
-                        {fields.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => remove(index)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <FormField
-                          control={form.control}
-                          name={`prizes.${index}.title`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Prize Title</FormLabel>
-                              <FormControl>
-                                <Input placeholder="e.g., Giải nhất" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name={`prizes.${index}.prizesCount`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Number of Winners</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  placeholder="1"
-                                  {...field}
-                                  onChange={(e) => field.onChange(parseInt(e.target.value))}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name={`prizes.${index}.matchingDigits`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Matching Digits (1-6)</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  max={6}
-                                  placeholder="6"
-                                  {...field}
-                                  onChange={(e) => field.onChange(parseInt(e.target.value))}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name={`prizes.${index}.prizeValue`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Prize Value (VND)</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  placeholder="1000000"
-                                  {...field}
-                                  onChange={(e) => field.onChange(parseInt(e.target.value))}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={prizesSnapshot.map((p, i) => p._uid ?? `fallback-${i}`)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {fields.map((field, index) => {
+                    const uid = prizesSnapshot[index]?._uid ?? field.id;
+                    return (
+                      <SortablePrizeCard
+                        key={uid}
+                        id={uid}
+                        index={index}
+                        form={form}
+                        onRemove={() => remove(index)}
+                        canRemove={fields.length > 1}
+                      />
+                    );
+                  })}
+                </SortableContext>
+              </DndContext>
 
               <Button
                 type="button"
@@ -540,10 +660,12 @@ export function CampaignForm({
                 size="sm"
                 onClick={() =>
                   append({
+                    _uid: `prize-${Date.now()}-${fields.length}`,
                     title: '',
                     prizesCount: 1,
                     matchingDigits: 3,
                     prizeValue: 100000,
+                    displayOrder: fields.length,
                   })
                 }
               >

@@ -16,13 +16,13 @@ interface PrizeTableProps {
 
 /**
  * PrizeTable Component
- * 
+ *
  * Displays campaign prizes in a table format with:
  * - Prize title and count
  * - Matching digits (for winning)
  * - Prize value
  * - Winning odds
- * 
+ *
  * Architecture:
  * - Single responsibility: Display prizes only
  * - Reusable across different pages
@@ -51,10 +51,9 @@ export function PrizeTable({ prizes, ticketPrice }: PrizeTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Giải thưởng</TableHead>
+              <TableHead className="text-center">Số chữ số</TableHead>
               <TableHead className="text-center">Số lượng</TableHead>
-              <TableHead className="text-center">Số chữ số trúng</TableHead>
               <TableHead className="text-right">Giá trị</TableHead>
-              <TableHead className="text-center">Tỷ lệ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -62,16 +61,13 @@ export function PrizeTable({ prizes, ticketPrice }: PrizeTableProps) {
               <TableRow key={prize.id}>
                 <TableCell className="font-medium">{prize.title}</TableCell>
                 <TableCell className="text-center">
-                  <Badge variant="outline">{prize.prizesCount}</Badge>
+                  <Badge variant="secondary">{prize.matchingDigits} số</Badge>
                 </TableCell>
                 <TableCell className="text-center">
-                  <Badge variant="secondary">{prize.matchingDigits} số</Badge>
+                  <Badge variant="outline">{prize.prizesCount}</Badge>
                 </TableCell>
                 <TableCell className="text-right font-semibold text-green-600">
                   {formatCurrency(prize.prizeValue)}
-                </TableCell>
-                <TableCell className="text-center text-sm text-muted-foreground">
-                  {calculateOdds(prize.matchingDigits)}
                 </TableCell>
               </TableRow>
             ))}

@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { tickets, orderTickets, type Ticket, type NewTicket } from '@/db/schema';
-import { eq, and, sql, inArray } from 'drizzle-orm';
+import { eq, and, sql, inArray, count } from 'drizzle-orm';
 
 /**
  * Ticket Service
@@ -167,6 +167,18 @@ export class TicketService {
       .limit(1);
 
     return !existing;
+  }
+
+  /**
+   * Count tickets already purchased by a user for a campaign.
+   * Used to enforce minimum_tickets only on first purchase.
+   */
+  async countByUserAndCampaign(userId: number, campaignId: number): Promise<number> {
+    const [row] = await db
+      .select({ count: count() })
+      .from(tickets)
+      .where(and(eq(tickets.userId, userId), eq(tickets.campaignId, campaignId)));
+    return row?.count ?? 0;
   }
 
   /**

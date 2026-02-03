@@ -1,24 +1,26 @@
-import { Users, Ticket, DollarSign } from 'lucide-react';
+import { Users, Ticket, DollarSign, ShoppingBag } from 'lucide-react';
 import type { CampaignStatistics } from '@/types';
 
 interface CampaignStatsProps {
   stats: CampaignStatistics;
+  /** When > 1, show "Số vé tối thiểu" stat */
+  minimumTickets?: number;
 }
 
 /**
  * CampaignStats Component
- * 
+ *
  * Displays campaign statistics with:
  * - Tickets sold count
  * - Participants count
  * - Total revenue
- * 
+ *
  * Architecture:
  * - Single responsibility: Display statistics
  * - Uses lucide-react icons for visual appeal
  * - Responsive grid layout
  */
-export function CampaignStats({ stats }: CampaignStatsProps) {
+export function CampaignStats({ stats, minimumTickets = 1 }: CampaignStatsProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -52,10 +54,21 @@ export function CampaignStats({ stats }: CampaignStatsProps) {
       color: 'text-green-600',
       bgColor: 'bg-green-50',
     },
+    ...(minimumTickets > 1
+      ? [
+          {
+            icon: ShoppingBag,
+            label: 'Số vé tối thiểu 1 lần mua',
+            value: `${minimumTickets} vé`,
+            color: 'text-amber-600',
+            bgColor: 'bg-amber-50',
+          },
+        ]
+      : []),
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className={`grid grid-cols-1 gap-4 ${statItems.length === 4 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
       {statItems.map((item) => (
         <div
           key={item.label}

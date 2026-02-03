@@ -244,7 +244,7 @@ export class DrawService {
       .select()
       .from(campaignPrizes)
       .where(eq(campaignPrizes.campaignId, campaignId))
-      .orderBy(asc(campaignPrizes.matchingDigits), asc(campaignPrizes.createdAt));
+      .orderBy(asc(campaignPrizes.displayOrder), asc(campaignPrizes.matchingDigits), asc(campaignPrizes.createdAt));
 
     // Get all winning numbers for these prizes
     const prizeIds = prizes.map((p) => p.id);

@@ -12,6 +12,7 @@ export const prizeSchema = z.object({
   prizesCount: z.number().int().positive('Prize count must be positive'),
   matchingDigits: z.number().int().min(1).max(6, 'Matching digits must be between 1 and 6'),
   prizeValue: z.number().int().positive('Prize value must be positive'),
+  displayOrder: z.number().int().min(0).optional().default(0),
 });
 
 // Create campaign schema
@@ -23,6 +24,7 @@ export const createCampaignSchema = z
     startTime: z.string().datetime('Invalid start time format'),
     endTime: z.string().datetime('Invalid end time format'),
     ticketPrice: z.number().int().positive('Ticket price must be positive'),
+    minimumTickets: z.number().int().min(1).optional().default(1),
     paymentType: z.enum(['direct', 'transfer']),
     bankNameOrCode: z.string().max(100).optional().nullable(),
     accountNumber: z.string().max(50).optional().nullable(),
@@ -66,6 +68,7 @@ export const updateCampaignSchema = z
     startTime: z.string().datetime().optional(),
     endTime: z.string().datetime().optional(),
     ticketPrice: z.number().int().positive().optional(),
+    minimumTickets: z.number().int().min(1).optional(),
     paymentType: z.enum(['direct', 'transfer']).optional(),
     bankNameOrCode: z.string().max(100).optional().nullable(),
     accountNumber: z.string().max(50).optional().nullable(),

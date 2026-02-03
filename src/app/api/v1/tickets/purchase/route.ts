@@ -118,6 +118,26 @@ export async function POST(request: NextRequest, context: RouteContext) {
       phone: validatedData.phone,
     });
 
+    // 5b. Minimum tickets check (only for first-time purchasers)
+    const minimumTickets = campaign.minimumTickets ?? 1;
+    if (minimumTickets > 1) {
+      const ticketsAlreadyOwned = await ticketService.countByUserAndCampaign(user.id, campaign.id);
+      if (ticketsAlreadyOwned < minimumTickets) {
+        if (validatedData.ticketsCount < minimumTickets) {
+          return NextResponse.json<ApiResponse>(
+            {
+              success: false,
+              error: {
+                code: 'MINIMUM_TICKETS_REQUIRED',
+                message: `Số vé tối thiểu là ${minimumTickets} vé`,
+              },
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // 6. Calculate total amount
     const totalAmount = campaign.ticketPrice * validatedData.ticketsCount;
 

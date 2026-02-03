@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 import type { ApiResponse } from '@/types';
 
 /**
- * Purchase form validation schema
+ * Purchase form validation schema (minimum for ticketsCount enforced in submit when minimumTickets > 1)
  */
 const purchaseFormSchema = z.object({
   name: z.string().min(1, 'Tên là bắt buộc'),
@@ -32,9 +32,15 @@ const purchaseFormSchema = z.object({
 
 type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 
+interface LookupResult {
+  user: { name: string; email: string; phone: string } | null;
+  ticketsCountForCampaign: number;
+}
+
 interface PurchaseFormProps {
   campaignSlug: string;
   ticketPrice: number;
+  minimumTickets?: number;
 }
 
 /**
@@ -52,9 +58,11 @@ interface PurchaseFormProps {
  * - Clean component design
  * - Proper error handling and user feedback
  */
-export function PurchaseForm({ campaignSlug, ticketPrice }: PurchaseFormProps) {
+export function PurchaseForm({ campaignSlug, ticketPrice, minimumTickets = 1 }: PurchaseFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
 
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseFormSchema),
@@ -66,9 +74,45 @@ export function PurchaseForm({ campaignSlug, ticketPrice }: PurchaseFormProps) {
     },
   });
 
-  const { handleSubmit, watch, setValue } = form;
+  const { handleSubmit, watch, setValue, setError, clearErrors } = form;
   const ticketsCount = watch('ticketsCount');
   const totalAmount = ticketsCount * ticketPrice;
+
+  const ticketsCountForCampaign = lookupResult?.ticketsCountForCampaign ?? 0;
+  const isReturningUser = lookupResult?.user != null;
+  const namePhoneReadOnly = isReturningUser;
+
+  const doLookup = useCallback(
+    async (emailValue: string) => {
+      const trimmed = emailValue?.trim();
+      if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        setLookupResult(null);
+        return;
+      }
+      setLookupLoading(true);
+      setLookupResult(null);
+      try {
+        const res = await fetch(
+          `/api/v1/campaigns/${encodeURIComponent(campaignSlug)}/lookup?email=${encodeURIComponent(trimmed)}`
+        );
+        const result: ApiResponse<LookupResult> = await res.json();
+        if (result.success && result.data) {
+          setLookupResult(result.data);
+          if (result.data.user) {
+            setValue('name', result.data.user.name);
+            setValue('phone', result.data.user.phone || '');
+          }
+        } else {
+          setLookupResult({ user: null, ticketsCountForCampaign: 0 });
+        }
+      } catch {
+        setLookupResult(null);
+      } finally {
+        setLookupLoading(false);
+      }
+    },
+    [campaignSlug, setValue]
+  );
 
   // Format VND currency
   const formatVND = (amount: number) => {
@@ -79,6 +123,15 @@ export function PurchaseForm({ campaignSlug, ticketPrice }: PurchaseFormProps) {
   };
 
   const onSubmit = handleSubmit(async (data) => {
+    if (minimumTickets > 1 && ticketsCountForCampaign < minimumTickets && data.ticketsCount < minimumTickets) {
+      setError('ticketsCount', {
+        type: 'manual',
+        message: `Số lượng vé tối thiểu phải mua là ${minimumTickets} vé`,
+      });
+      return;
+    }
+    clearErrors('ticketsCount');
+
     setIsSubmitting(true);
 
     try {
@@ -135,26 +188,7 @@ export function PurchaseForm({ campaignSlug, ticketPrice }: PurchaseFormProps) {
       <CardContent>
         <Form {...form}>
           <form onSubmit={onSubmit} className="space-y-4">
-            {/* Name Field */}
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Họ và tên *</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="Nguyễn Văn A"
-                      disabled={isSubmitting}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Email Field */}
+            {/* Email first */}
             <FormField
               control={form.control}
               name="email"
@@ -167,6 +201,31 @@ export function PurchaseForm({ campaignSlug, ticketPrice }: PurchaseFormProps) {
                       type="email"
                       placeholder="email@example.com"
                       disabled={isSubmitting}
+                      onBlur={() => doLookup(field.value)}
+                    />
+                  </FormControl>
+                  {lookupLoading && (
+                    <p className="text-xs text-muted-foreground">Đang kiểm tra...</p>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Name */}
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Họ và tên *</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Nguyễn Văn A"
+                      disabled={isSubmitting}
+                      readOnly={namePhoneReadOnly}
+                      className={namePhoneReadOnly ? 'bg-muted' : undefined}
                     />
                   </FormControl>
                   <FormMessage />
@@ -174,7 +233,7 @@ export function PurchaseForm({ campaignSlug, ticketPrice }: PurchaseFormProps) {
               )}
             />
 
-            {/* Phone Field */}
+            {/* Phone */}
             <FormField
               control={form.control}
               name="phone"
@@ -188,6 +247,8 @@ export function PurchaseForm({ campaignSlug, ticketPrice }: PurchaseFormProps) {
                       placeholder="0901234567"
                       maxLength={10}
                       disabled={isSubmitting}
+                      readOnly={namePhoneReadOnly}
+                      className={namePhoneReadOnly ? 'bg-muted' : undefined}
                     />
                   </FormControl>
                   <FormMessage />

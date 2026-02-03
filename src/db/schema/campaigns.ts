@@ -35,6 +35,7 @@ export const campaigns = pgTable(
     startTime: timestamp('start_time', { withTimezone: true }).notNull(),
     endTime: timestamp('end_time', { withTimezone: true }).notNull(),
     ticketPrice: integer('ticket_price').notNull(), // VND
+    minimumTickets: integer('minimum_tickets').notNull().default(1),
     paymentType: paymentTypeEnum('payment_type').notNull().default('direct'),
     bankNameOrCode: varchar('bank_name_or_code', { length: 100 }),
     accountNumber: varchar('account_number', { length: 50 }),
