@@ -1,13 +1,24 @@
-import { createCanvas, loadImage } from 'canvas';
+import sharp from 'sharp';
 import { join } from 'path';
 import type { Ticket } from '@/db/schema/tickets';
 import type { Campaign } from '@/db/schema/campaigns';
 
 /**
+ * Escape text for Pango markup (used by sharp for text rendering).
+ * Prevents injection of markup from ticket number.
+ */
+function escapePangoMarkup(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
  * Ticket Image Generation Service
  *
  * Generates ticket images by loading a template and drawing ticket numbers on it.
- * Uses node-canvas for server-side image generation.
+ * Uses sharp for server-side image generation (no native canvas dependency).
  *
  * Architecture Principles:
  * - Single responsibility: Only handles image generation
@@ -21,8 +32,6 @@ export class TicketImageService {
 
   constructor() {
     // Template path: src/assets/img/ticket_template.png
-    // In Next.js, we need to use absolute path or copy to public folder
-    // For server-side, we can use the source path directly
     this.templatePath = join(process.cwd(), 'src', 'assets', 'img', 'ticket_template.png');
   }
 
@@ -38,27 +47,27 @@ export class TicketImageService {
     campaign?: Pick<Campaign, 'title'>
   ): Promise<Buffer> {
     try {
-      // Load template image
-      const template = await loadImage(this.templatePath);
+      // 46pt in Pango = size 46000 (thousandths of a point). Black text, transparent background.
+      const textMarkup = `<span size="46000" foreground="black">${escapePangoMarkup(ticket.ticketNumber)}</span>`;
 
-      // Create canvas with template dimensions
-      const canvas = createCanvas(this.templateWidth, this.templateHeight);
-      const ctx = canvas.getContext('2d');
+      const image = await sharp(this.templatePath)
+        .composite([
+          {
+            input: {
+              text: {
+                text: textMarkup,
+                font: 'Arial',
+                rgba: true,
+              },
+            },
+            left: 252,
+            top: 186,
+          },
+        ])
+        .png()
+        .toBuffer();
 
-      // Draw template image
-      ctx.drawImage(template, 0, 0, this.templateWidth, this.templateHeight);
-
-      // Draw ticket number
-      // Font: Arial, size 46, line height 1
-      // Position: (252, 186)
-      ctx.font = '46px Arial';
-      ctx.fillStyle = '#000000'; // Black text
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillText(ticket.ticketNumber, 252, 186);
-
-      // Export as PNG buffer
-      return canvas.toBuffer('image/png');
+      return image;
     } catch (error) {
       console.error('[TicketImageService] Error generating ticket image:', error);
       throw new Error(

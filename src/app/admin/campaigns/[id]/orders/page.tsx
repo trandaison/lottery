@@ -229,6 +229,17 @@ export default function CampaignOrdersPage() {
   const formatDate = (s: string | null) =>
     s ? format(new Date(s), 'dd/MM/yyyy HH:mm') : '—';
 
+  const formatErrorMessage = (s: string | null) => {
+    if (!s) return '';
+
+    try {
+      const error = JSON.parse(s);
+      return JSON.stringify(error, null, 2);
+    } catch (err) {
+      return s;
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -369,13 +380,13 @@ export default function CampaignOrdersPage() {
                               className="size-8 shrink-0"
                               aria-label="Xem lỗi"
                             >
-                              <Info className="size-4 text-muted-foreground" />
+                              <Info className="size-4 text-red-600" />
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="max-w-sm" align="start">
+                          <PopoverContent className="w-96" align="start">
                             <p className="text-sm font-medium mb-1">Lỗi thanh toán</p>
-                            <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
-                              {order.errorMessage}
+                            <p className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-words">
+                              {formatErrorMessage(order.errorMessage)}
                             </p>
                           </PopoverContent>
                         </Popover>

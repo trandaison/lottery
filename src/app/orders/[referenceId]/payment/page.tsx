@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -91,6 +91,15 @@ export default function PaymentPage() {
       }
     },
   });
+
+  const orderError = useMemo(() => {
+    try {
+      const { reconciliationResult = 'Unknown error' } = JSON.parse(order?.errorMessage || '{}');
+      return reconciliationResult;
+    } catch (err) {
+      return 'Unknown error';
+    }
+  }, [order]);
 
   // Fetch initial order data to get QR code and bank info
   useEffect(() => {
@@ -466,7 +475,7 @@ export default function PaymentPage() {
                   Rất tiếc, thanh toán của bạn đã thất bại.
                 </p>
                 {order.errorMessage && (
-                  <p className="text-sm text-gray-600">{order.errorMessage}</p>
+                  <p className="text-sm text-gray-600">{orderError}</p>
                 )}
               </div>
 
