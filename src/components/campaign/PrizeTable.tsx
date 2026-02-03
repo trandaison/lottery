@@ -7,11 +7,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { formatPrizeValueDisplay } from '@/lib/utils/prize-value';
 import type { CampaignPrizeDTO } from '@/types';
 
 interface PrizeTableProps {
   prizes: CampaignPrizeDTO[];
-  ticketPrice: number;
+  ticketPrice?: number;
+  totalRevenue?: number;
+  prizeValueType?: 'fixed' | 'percent';
 }
 
 /**
@@ -28,15 +31,7 @@ interface PrizeTableProps {
  * - Reusable across different pages
  * - Uses shadcn/ui components for consistency
  */
-export function PrizeTable({ prizes, ticketPrice }: PrizeTableProps) {
-  // Format currency in VND
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(amount);
-  };
-
+export function PrizeTable({ prizes, ticketPrice: _ticketPrice, totalRevenue, prizeValueType = 'fixed' }: PrizeTableProps) {
   // Calculate odds (simplified for display)
   const calculateOdds = (matchingDigits: number) => {
     const totalCombinations = Math.pow(10, matchingDigits);
@@ -67,7 +62,7 @@ export function PrizeTable({ prizes, ticketPrice }: PrizeTableProps) {
                   <Badge variant="outline">{prize.prizesCount}</Badge>
                 </TableCell>
                 <TableCell className="text-right font-semibold text-green-600">
-                  {formatCurrency(prize.prizeValue)}
+                  {formatPrizeValueDisplay(prize, totalRevenue, prizeValueType)}
                 </TableCell>
               </TableRow>
             ))}

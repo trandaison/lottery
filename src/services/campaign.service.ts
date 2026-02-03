@@ -126,7 +126,7 @@ export class CampaignService {
       return {
         ...campaign,
         prizes: createdPrizes,
-      };
+      } as CampaignWithPrizes;
     });
   }
 
@@ -209,7 +209,7 @@ export class CampaignService {
       return {
         ...updated,
         prizes: updatedPrizes,
-      };
+      } as CampaignWithPrizes;
     });
   }
 
@@ -352,7 +352,7 @@ export class CampaignService {
     return {
       ...campaign,
       prizes,
-    };
+    } as CampaignWithPrizes;
   }
 
   /**
@@ -378,7 +378,7 @@ export class CampaignService {
     return {
       ...campaign,
       prizes,
-    };
+    } as CampaignWithPrizes;
   }
 
   /**
@@ -465,7 +465,7 @@ export class CampaignService {
           prizes,
           ticketsSold: ticketsByCampaign[campaign.id] ?? 0,
           ordersCount: ordersByCampaign[campaign.id] ?? 0,
-        };
+        } as CampaignWithPrizes & { ticketsSold: number; ordersCount: number };
       })
     );
 

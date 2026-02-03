@@ -47,8 +47,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Get prizes with draw status
-    const prizesWithStatus = await drawService.getPrizesWithDrawStatus(campaignId);
+    // Get prizes with draw status and stats (for % prize value display)
+    const [prizesWithStatus, stats] = await Promise.all([
+      drawService.getPrizesWithDrawStatus(campaignId),
+      campaignService.getStats(campaignId),
+    ]);
 
     // For each winning number, find the winners (users with matching tickets)
     const prizesWithWinners: PrizeWithDrawStatus[] = await Promise.all(
@@ -119,6 +122,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
           prizesCount: prize.prizesCount,
           matchingDigits: prize.matchingDigits,
           prizeValue: prize.prizeValue,
+          prizeValuePercent: prize.prizeValuePercent ?? null,
           createdAt: prize.createdAt,
           updatedAt: prize.updatedAt,
           drawStatus: prize.drawStatus,
@@ -135,8 +139,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
           title: string;
           excludeWinningNumbers: boolean;
           status: 'active' | 'drawing' | 'completed' | 'canceled';
+          prizeValueType: 'fixed' | 'percent';
         };
         prizes: PrizeWithDrawStatus[];
+        totalRevenue: number;
       }>
     >({
       success: true,
@@ -147,8 +153,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
           title: campaign.title,
           excludeWinningNumbers: campaign.excludeWinningNumbers,
           status: campaign.status,
+          prizeValueType: ((campaign as { prizeValueType?: string }).prizeValueType ?? 'fixed') as 'fixed' | 'percent',
         },
         prizes: prizesWithWinners,
+        totalRevenue: stats.totalRevenue,
       },
     });
   } catch (error) {

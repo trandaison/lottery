@@ -41,6 +41,7 @@ export const campaigns = pgTable(
     accountNumber: varchar('account_number', { length: 50 }),
     webhookApiKey: text('webhook_api_key'), // JWT token for SePay webhook authentication
     status: campaignStatusEnum('status').notNull().default('active'),
+    prizeValueType: varchar('prize_value_type', { length: 20 }).notNull().default('fixed'), // 'fixed' | 'percent'
     excludeWinningNumbers: boolean('exclude_winning_numbers')
       .notNull()
       .default(true),

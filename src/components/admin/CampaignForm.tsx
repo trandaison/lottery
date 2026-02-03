@@ -45,9 +45,9 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { CampaignWithPrizes } from '@/types';
+import type { CampaignWithPrizes, CampaignPrizeDTO } from '@/types';
 
-// Form schema matching backend validation
+// Form schema matching backend validation (prizeValueType at campaign level)
 const campaignFormSchema = z
   .object({
     title: z.string().min(1, 'Title is required').max(255),
@@ -62,18 +62,41 @@ const campaignFormSchema = z
     paymentType: z.enum(['direct', 'transfer']),
     bankNameOrCode: z.string().optional(),
     accountNumber: z.string().optional(),
+    prizeValueType: z.enum(['fixed', 'percent']),
     prizes: z
       .array(
         z.object({
-          _uid: z.string().optional(), // client-only stable id for drag key/sortable
+          _uid: z.string().optional(),
           title: z.string().min(1, 'Prize title is required').max(255),
           prizesCount: z.number().int().positive('Prize count must be positive'),
           matchingDigits: z.number().int().min(1).max(6),
-          prizeValue: z.number().int().positive('Prize value must be positive'),
+          prizeValue: z.string().max(255),
+          prizeValuePercent: z.number().int().min(0).max(100).optional().nullable(),
           displayOrder: z.number().int().min(0),
         })
       )
       .min(1, 'At least one prize is required'),
+  })
+  .superRefine((data, ctx) => {
+    const type = data.prizeValueType;
+    data.prizes.forEach((p, i) => {
+      if (type === 'fixed' && (!p.prizeValue || p.prizeValue.trim() === '')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Prize value is required when campaign type is fixed',
+          path: ['prizes', i, 'prizeValue'],
+        });
+      }
+      if (type === 'percent') {
+        if (p.prizeValuePercent == null || p.prizeValuePercent < 0 || p.prizeValuePercent > 100) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Percent (0-100) is required when campaign type is percent',
+            path: ['prizes', i, 'prizeValuePercent'],
+          });
+        }
+      }
+    });
   })
   .refine((data) => data.endTime > data.startTime, {
     message: 'End time must be after start time',
@@ -185,27 +208,48 @@ function SortablePrizeCard({ id, index, form, onRemove, canRemove }: SortablePri
               )}
             />
           </div>
-          <div className="col-span-3 flex items-end gap-1">
-            <div className="flex-1">
+          <div className="col-span-3 flex items-end gap-1 flex-wrap">
+            {form.watch('prizeValueType') === 'percent' ? (
               <FormField
                 control={form.control}
-                name={`prizes.${index}.prizeValue`}
+                name={`prizes.${index}.prizeValuePercent`}
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs">Value (VND)</FormLabel>
+                  <FormItem className="flex-1 min-w-[80px]">
+                    <FormLabel className="text-xs">% doanh thu</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
-                        placeholder="1000000"
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                        min={0}
+                        max={100}
+                        placeholder="10"
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value === '' ? null : parseInt(e.target.value, 10))}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
+            ) : (
+              <FormField
+                control={form.control}
+                name={`prizes.${index}.prizeValue`}
+                render={({ field }) => (
+                  <FormItem className="flex-1 min-w-[100px]">
+                    <FormLabel className="text-xs">Value (VND hoặc text)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="text"
+                        placeholder="1000000 hoặc 1 iPhone"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             {canRemove && (
               <Button type="button" variant="ghost" size="icon" onClick={onRemove} className="shrink-0 mb-1">
                 <Trash2 className="h-4 w-4" />
@@ -258,12 +302,14 @@ export function CampaignForm({
           paymentType: campaign.paymentType,
           bankNameOrCode: campaign.bankNameOrCode || '',
           accountNumber: campaign.accountNumber || '',
+          prizeValueType: campaign.prizeValueType ?? 'fixed',
           prizes: campaign.prizes.map((p, index) => ({
             _uid: `prize-${(p as { id?: number }).id ?? index}`,
             title: p.title,
             prizesCount: p.prizesCount,
             matchingDigits: p.matchingDigits,
-            prizeValue: p.prizeValue,
+            prizeValue: typeof p.prizeValue === 'number' ? String(p.prizeValue) : (p.prizeValue ?? ''),
+            prizeValuePercent: (p as CampaignPrizeDTO).prizeValuePercent ?? null,
             displayOrder: (p as { displayOrder?: number }).displayOrder ?? index,
           })),
         }
@@ -280,13 +326,15 @@ export function CampaignForm({
           paymentType: 'direct' as const,
           bankNameOrCode: '',
           accountNumber: '',
+          prizeValueType: 'fixed',
           prizes: [
             {
               _uid: `prize-${Date.now()}-0`,
               title: 'Giải nhất',
               prizesCount: 1,
               matchingDigits: 6,
-              prizeValue: 1000000,
+              prizeValue: '1000000',
+              prizeValuePercent: null,
               displayOrder: 0,
             },
           ],
@@ -414,10 +462,13 @@ export function CampaignForm({
   }, [title, autoSlug, form, mode]);
 
   const handleSubmit = async (data: CampaignFormValues) => {
-    const { prizes, ...rest } = data;
-    const prizesForApi = prizes.map(({ _uid, ...p }) => p);
+    const { prizes, prizeValueType, ...rest } = data;
+    const prizesForApi = prizes.map(({ _uid, ...p }) => ({
+      ...p,
+      prizeValue: prizeValueType === 'percent' ? '' : (p.prizeValue ?? ''),
+    }));
     try {
-      await onSubmit({ ...rest, prizes: prizesForApi });
+      await onSubmit({ ...rest, prizeValueType, prizes: prizesForApi });
     } catch (error) {
       console.error('Form submission error:', error);
     }
@@ -635,23 +686,51 @@ export function CampaignForm({
           </div>
 
           <div className="space-y-4">
-            <FormField
-              control={form.control}
-              name="excludeWinningNumbers"
-              render={({ field }) => (
-                <FormItem className="inline-flex gap-16 flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Exclude Winning Numbers</FormLabel>
-                    <FormDescription>
-                      Prevent numbers that have already won from winning again
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch checked={field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+            <div className="flex gap-4">
+              <FormField
+                control={form.control}
+                name="prizeValueType"
+                render={({ field }) => (
+                  <FormItem className="inline-flex gap-16 flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Giá trị giải thưởng</FormLabel>
+                      <FormDescription>
+                        Cố định: nhập số tiền hoặc text. Theo % doanh thu: nhập % (0-100) cho mỗi giải.
+                      </FormDescription>
+                    </div>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-[220px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="fixed">Cố định (số hoặc text)</SelectItem>
+                        <SelectItem value="percent">Theo % doanh thu</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="excludeWinningNumbers"
+                render={({ field }) => (
+                  <FormItem className="inline-flex gap-16 flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Exclude Winning Numbers</FormLabel>
+                      <FormDescription>
+                        Prevent numbers that have already won from winning again
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="space-y-4">
               <DndContext
@@ -688,8 +767,9 @@ export function CampaignForm({
                     _uid: `prize-${Date.now()}-${fields.length}`,
                     title: '',
                     prizesCount: 1,
-                    matchingDigits: 3,
-                    prizeValue: 100000,
+                    matchingDigits: 6,
+                    prizeValue: '',
+                    prizeValuePercent: null,
                     displayOrder: fields.length,
                   })
                 }

@@ -6,12 +6,13 @@ import { z } from 'zod';
  * Follows Zod best practices for type-safe validation
  */
 
-// Prize schema (used in campaign creation/update)
+// Prize schema (used in campaign creation/update; type comes from campaign.prizeValueType)
 export const prizeSchema = z.object({
   title: z.string().min(1, 'Prize title is required').max(255),
   prizesCount: z.number().int().positive('Prize count must be positive'),
   matchingDigits: z.number().int().min(1).max(6, 'Matching digits must be between 1 and 6'),
-  prizeValue: z.number().int().positive('Prize value must be positive'),
+  prizeValue: z.string().max(255),
+  prizeValuePercent: z.number().int().min(0).max(100).optional().nullable(),
   displayOrder: z.number().int().min(0).optional().default(0),
 });
 
@@ -30,7 +31,29 @@ export const createCampaignSchema = z
     accountNumber: z.string().max(50).optional().nullable(),
     status: z.enum(['active', 'drawing', 'completed', 'canceled']).optional().default('active'),
     excludeWinningNumbers: z.boolean().optional().default(true),
+    prizeValueType: z.enum(['fixed', 'percent']).optional().default('fixed'),
     prizes: z.array(prizeSchema).min(1, 'At least one prize is required'),
+  })
+  .superRefine((data, ctx) => {
+    const type = data.prizeValueType ?? 'fixed';
+    data.prizes.forEach((prize, i) => {
+      if (type === 'fixed' && (!prize.prizeValue || prize.prizeValue.trim() === '')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Prize value is required when campaign type is fixed',
+          path: ['prizes', i, 'prizeValue'],
+        });
+      }
+      if (type === 'percent') {
+        if (prize.prizeValuePercent == null || prize.prizeValuePercent < 0 || prize.prizeValuePercent > 100) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Prize percent (0-100) is required when campaign type is percent',
+            path: ['prizes', i, 'prizeValuePercent'],
+          });
+        }
+      }
+    });
   })
   .refine(
     (data) => {
@@ -74,7 +97,30 @@ export const updateCampaignSchema = z
     accountNumber: z.string().max(50).optional().nullable(),
     status: z.enum(['active', 'drawing', 'completed', 'canceled']).optional(),
     excludeWinningNumbers: z.boolean().optional(),
+    prizeValueType: z.enum(['fixed', 'percent']).optional(),
     prizes: z.array(prizeSchema).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.prizes?.length) return;
+    const type = data.prizeValueType ?? 'fixed';
+    data.prizes.forEach((prize, i) => {
+      if (type === 'fixed' && (!prize.prizeValue || prize.prizeValue.trim() === '')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Prize value is required when campaign type is fixed',
+          path: ['prizes', i, 'prizeValue'],
+        });
+      }
+      if (type === 'percent') {
+        if (prize.prizeValuePercent == null || prize.prizeValuePercent < 0 || prize.prizeValuePercent > 100) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Prize percent (0-100) is required when campaign type is percent',
+            path: ['prizes', i, 'prizeValuePercent'],
+          });
+        }
+      }
+    });
   })
   .refine(
     (data) => {

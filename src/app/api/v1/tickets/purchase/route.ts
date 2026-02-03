@@ -16,7 +16,7 @@ const purchaseRequestSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email address'),
   phone: z.string().regex(/^0\d{9}$/, 'Phone must be 10 digits starting with 0'),
-  ticketsCount: z.number().int().min(1).max(100, 'Cannot purchase more than 100 tickets at once'),
+  ticketsCount: z.number().int().min(1).max(10000, 'Cannot purchase more than 10000 tickets at once'),
 });
 
 interface RouteContext {

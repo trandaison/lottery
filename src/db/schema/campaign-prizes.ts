@@ -25,7 +25,8 @@ export const campaignPrizes = pgTable(
     title: varchar('title', { length: 255 }).notNull(),
     prizesCount: integer('prizes_count').notNull(),
     matchingDigits: integer('matching_digits').notNull(), // 1-6
-    prizeValue: integer('prize_value').notNull(), // VND
+    prizeValue: varchar('prize_value', { length: 255 }).notNull(), // display: number or text (when campaign prizeValueType = fixed)
+    prizeValuePercent: integer('prize_value_percent'), // 0-100 when campaign prizeValueType = 'percent'
     displayOrder: integer('display_order').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()

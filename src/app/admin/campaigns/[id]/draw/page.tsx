@@ -32,8 +32,10 @@ interface PrizesResponse {
     title: string;
     excludeWinningNumbers: boolean;
     status?: 'active' | 'drawing' | 'completed' | 'canceled';
+    prizeValueType?: 'fixed' | 'percent';
   };
   prizes: PrizeWithDrawStatus[];
+  totalRevenue: number;
 }
 
 export default function DrawCampaignPage({ params }: PageProps) {
@@ -45,6 +47,7 @@ export default function DrawCampaignPage({ params }: PageProps) {
   // State
   const [campaign, setCampaign] = useState<PrizesResponse['campaign'] | null>(null);
   const [prizes, setPrizes] = useState<PrizeWithDrawStatus[]>([]);
+  const [totalRevenue, setTotalRevenue] = useState(0);
   const [loading, setLoading] = useState(true);
   const [draftMode, setDraftMode] = useState(false);
   const [shuffledNumbers, setShuffledNumbers] = useState<string[] | null>(null);
@@ -145,6 +148,7 @@ export default function DrawCampaignPage({ params }: PageProps) {
       if (result.success) {
         setCampaign(result.data.campaign);
         setPrizes(result.data.prizes);
+        setTotalRevenue(result.data.totalRevenue ?? 0);
       } else {
         toast.error('Failed to load prizes');
         router.push('/admin/campaigns');
@@ -466,6 +470,8 @@ export default function DrawCampaignPage({ params }: PageProps) {
             <h2 className="mb-4 text-2xl font-bold">Kết quả quay số</h2>
             <ResultsTable
               prizes={prizes}
+              totalRevenue={totalRevenue}
+              prizeValueType={campaign?.prizeValueType ?? 'fixed'}
               onDraw={handleDraw}
               onRedo={handleRedo}
               isDrawing={!!shuffledNumbers}

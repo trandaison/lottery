@@ -11,7 +11,7 @@ import { db } from '../src/db';
 
 /**
  * Test Campaign Service
- * 
+ *
  * This script tests all Campaign CRUD operations and validations
  */
 
@@ -32,25 +32,26 @@ async function testCampaignService() {
         paymentType: 'direct',
         status: 'active',
         excludeWinningNumbers: true,
+        prizeValueType: 'fixed',
       },
       [
         {
           title: 'Giải nhất',
           prizesCount: 1,
           matchingDigits: 6,
-          prizeValue: 1000000,
+          prizeValue: '1000000',
         },
         {
           title: 'Giải nhì',
           prizesCount: 2,
           matchingDigits: 5,
-          prizeValue: 500000,
+          prizeValue: '500000',
         },
         {
           title: 'Giải ba',
           prizesCount: 3,
           matchingDigits: 4,
-          prizeValue: 200000,
+          prizeValue: '200000',
         },
       ]
     );
@@ -160,7 +161,7 @@ async function testCampaignService() {
             title: 'Test Prize',
             prizesCount: 1,
             matchingDigits: 6,
-            prizeValue: 100000,
+            prizeValue: '100000',
           },
         ]
       );
@@ -219,7 +220,7 @@ async function testCampaignService() {
             title: 'Test Prize',
             prizesCount: 1,
             matchingDigits: 6,
-            prizeValue: 100000,
+            prizeValue: '100000',
           },
         ]
       );

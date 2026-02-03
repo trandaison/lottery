@@ -36,6 +36,27 @@
       "when": 1769600000000,
       "tag": "0004_display_order_minimum_tickets",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1769700000000,
+      "tag": "0005_prize_value_string_and_percent",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1769800000000,
+      "tag": "0006_prize_value_type_on_campaign",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1770125529480,
+      "tag": "0007_powerful_misty_knight",
+      "breakpoints": true
     }
   ]
 }

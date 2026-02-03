@@ -4,10 +4,13 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RotateCcw, Play, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { formatPrizeValueDisplay } from '@/lib/utils/prize-value';
 import type { PrizeWithDrawStatus } from '@/types';
 
 interface ResultsTableProps {
   prizes: PrizeWithDrawStatus[];
+  totalRevenue?: number;
+  prizeValueType?: 'fixed' | 'percent';
   onDraw: (prizeId: number) => void;
   onRedo: (winningNumberId: number) => void;
   isDrawing: boolean;
@@ -25,6 +28,8 @@ interface ResultsTableProps {
  */
 export function ResultsTable({
   prizes,
+  totalRevenue,
+  prizeValueType = 'fixed',
   onDraw,
   onRedo,
   isDrawing,
@@ -160,7 +165,7 @@ export function ResultsTable({
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground mt-1">
-                        {prize.prizeValue.toLocaleString('vi-VN')} VNĐ/Giải
+                        {formatPrizeValueDisplay(prize, totalRevenue, prizeValueType)}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">{renderWinningNumberDisplay(prize)}</td>

@@ -19,22 +19,29 @@ import { eq, and, sql, inArray, count } from 'drizzle-orm';
 export class TicketService {
   /**
    * Generate a single unique 6-digit ticket number for a campaign
-   * Algorithm: Random generation + check uniqueness in DB
+   * Algorithm: Random generation + check uniqueness in DB and in reserved set (current batch)
    *
    * @param campaignId - Campaign ID
    * @param maxAttempts - Maximum attempts to generate unique number (default: 100)
+   * @param reservedInBatch - Set of numbers already chosen in current batch (not yet in DB)
    * @returns 6-digit ticket number string (e.g., "123456")
    */
   private async generateUniqueTicketNumber(
     campaignId: number,
-    maxAttempts: number = 100
+    maxAttempts: number = 100,
+    reservedInBatch: Set<string> = new Set()
   ): Promise<string> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       // Generate random 6-digit number (000000 to 999999)
       const number = Math.floor(Math.random() * 1000000);
       const ticketNumber = number.toString().padStart(6, '0');
 
-      // Check if number already exists for this campaign
+      // Skip if already reserved in this batch (avoids duplicate within same purchase)
+      if (reservedInBatch.has(ticketNumber)) {
+        continue;
+      }
+
+      // Check if number already exists for this campaign in DB
       const [existing] = await db
         .select()
         .from(tickets)
@@ -58,7 +65,7 @@ export class TicketService {
 
   /**
    * Generate multiple unique 6-digit ticket numbers for a campaign
-   * Uses sequential generation to ensure uniqueness
+   * Uses sequential generation; each number is unique in DB and within this batch.
    *
    * @param campaignId - Campaign ID
    * @param count - Number of tickets to generate
@@ -72,16 +79,21 @@ export class TicketService {
       throw new Error('INVALID_COUNT: Count must be greater than 0');
     }
 
-    if (count > 1000) {
-      throw new Error('INVALID_COUNT: Cannot generate more than 1000 tickets at once');
+    if (count > 10000) {
+      throw new Error('INVALID_COUNT: Cannot generate more than 10000 tickets at once');
     }
 
     const ticketNumbers: string[] = [];
+    const reservedInBatch = new Set<string>();
 
-    // Generate tickets sequentially to ensure uniqueness
     for (let i = 0; i < count; i++) {
-      const ticketNumber = await this.generateUniqueTicketNumber(campaignId);
+      const ticketNumber = await this.generateUniqueTicketNumber(
+        campaignId,
+        100,
+        reservedInBatch
+      );
       ticketNumbers.push(ticketNumber);
+      reservedInBatch.add(ticketNumber);
     }
 
     return ticketNumbers;

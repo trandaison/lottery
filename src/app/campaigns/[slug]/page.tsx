@@ -120,6 +120,8 @@ export default async function CampaignPage({ params }: CampaignPageProps) {
               <PrizeTable
                 prizes={campaign.prizes}
                 ticketPrice={campaign.ticketPrice}
+                totalRevenue={stats.totalRevenue}
+                prizeValueType={campaign.prizeValueType}
               />
             </div>
 

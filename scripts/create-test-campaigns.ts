@@ -15,7 +15,7 @@ const db = drizzle(client, {
 
 /**
  * Create Test Campaigns
- * 
+ *
  * Creates campaigns with different statuses and time ranges for testing:
  * 1. Active campaign (ongoing) - within time range
  * 2. Active campaign (not started) - countdown timer
@@ -142,21 +142,21 @@ async function createTestCampaigns() {
             title: 'Giải Nhất',
             prizesCount: 1,
             matchingDigits: 6,
-            prizeValue: 5000000,
+            prizeValue: '5000000',
           },
           {
             campaignId: campaign.id,
             title: 'Giải Nhì',
             prizesCount: 3,
             matchingDigits: 5,
-            prizeValue: 1000000,
+            prizeValue: '1000000',
           },
           {
             campaignId: campaign.id,
             title: 'Giải Ba',
             prizesCount: 10,
             matchingDigits: 4,
-            prizeValue: 200000,
+            prizeValue: '200000',
           },
         ]);
 

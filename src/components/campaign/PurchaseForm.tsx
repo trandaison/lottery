@@ -27,7 +27,7 @@ const purchaseFormSchema = z.object({
   name: z.string().min(1, 'Tên là bắt buộc'),
   email: z.string().email('Email không hợp lệ'),
   phone: z.string().regex(/^0\d{9}$/, 'Số điện thoại phải có 10 chữ số và bắt đầu bằng 0'),
-  ticketsCount: z.number().int().min(1, 'Số lượng vé phải lớn hơn 0').max(100, 'Không thể mua quá 100 vé một lần'),
+  ticketsCount: z.number().int().min(1, 'Số lượng vé phải lớn hơn 0').max(10000, 'Không thể mua quá 10000 vé một lần'),
 });
 
 type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
@@ -282,11 +282,11 @@ export function PurchaseForm({ campaignSlug, ticketPrice, minimumTickets = 1 }: 
                         {...field}
                         type="number"
                         min={1}
-                        max={100}
+                        max={10000}
                         className="text-center"
                         onChange={(e) => {
                           const value = parseInt(e.target.value, 10);
-                          if (!isNaN(value) && value >= 1 && value <= 100) {
+                          if (!isNaN(value) && value >= 1 && value <= 10000) {
                             setValue('ticketsCount', value);
                           }
                         }}
@@ -297,11 +297,11 @@ export function PurchaseForm({ campaignSlug, ticketPrice, minimumTickets = 1 }: 
                         variant="outline"
                         size="icon"
                         onClick={() => {
-                          if (field.value < 100) {
+                          if (field.value < 10000) {
                             setValue('ticketsCount', field.value + 1);
                           }
                         }}
-                        disabled={isSubmitting || field.value >= 100}
+                        disabled={isSubmitting || field.value >= 10000}
                       >
                         +
                       </Button>

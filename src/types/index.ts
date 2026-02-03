@@ -43,6 +43,7 @@ export interface CampaignWithPrizes {
   accountNumber: string | null;
   webhookApiKey: string | null;
   status: 'active' | 'drawing' | 'completed' | 'canceled';
+  prizeValueType: 'fixed' | 'percent';
   excludeWinningNumbers: boolean;
   canceledAt: Date | null;
   createdAt: Date;
@@ -61,7 +62,8 @@ export interface CampaignPrizeDTO {
   title: string;
   prizesCount: number;
   matchingDigits: number;
-  prizeValue: number;
+  prizeValue: string;
+  prizeValuePercent?: number | null;
   displayOrder: number;
   createdAt: Date;
   updatedAt: Date;
@@ -201,7 +203,8 @@ export interface PrizeWithDrawStatus {
   title: string;
   prizesCount: number;
   matchingDigits: number;
-  prizeValue: number;
+  prizeValue: string;
+  prizeValuePercent?: number | null;
   createdAt: Date;
   updatedAt: Date;
   drawStatus: 'not_drawn' | 'drawn' | 'completed';
