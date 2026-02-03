@@ -1,4 +1,4 @@
-import Redis from 'ioredis';
+import { Redis } from '@upstash/redis';
 import { env } from '@/config/env';
 
 let redis: Redis;
@@ -7,22 +7,13 @@ if (typeof window === 'undefined') {
   if (!env) {
     throw new Error('Environment variables not validated. Call validateEnv() before using redis.');
   }
-  // Only create Redis client on server-side
-  redis = new Redis(env.REDIS_URL, {
-    maxRetriesPerRequest: 3,
-    retryStrategy(times) {
-      const delay = Math.min(times * 50, 2000);
-      return delay;
-    },
+  // Parse REDIS_URL (rediss://default:TOKEN@host:6379) → REST URL + token
+  const u = new URL(env.REDIS_URL);
+  redis = new Redis({
+    url: `https://${u.hostname}`,
+    token: u.password,
   });
-
-  redis.on('connect', () => {
-    console.log('✅ Redis connected successfully');
-  });
-
-  redis.on('error', (error) => {
-    console.error('❌ Redis connection error:', error);
-  });
+  console.log('✅ Redis (Upstash) client initialized');
 }
 
 export { redis };

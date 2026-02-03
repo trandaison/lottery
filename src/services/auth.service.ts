@@ -74,7 +74,7 @@ export class AuthService {
     };
 
     const key = `${SESSION_PREFIX}${tokenBase}`;
-    await redis.set(key, JSON.stringify(sessionData), 'EX', ttl);
+    await redis.set(key, JSON.stringify(sessionData), { ex: ttl });
 
     return tokenBase;
   }
@@ -86,16 +86,22 @@ export class AuthService {
     const key = `${SESSION_PREFIX}${tokenBase}`;
     const data = await redis.get(key);
 
-    if (!data) {
+    if (data == null) {
       return null;
     }
 
-    try {
-      return JSON.parse(data) as SessionData;
-    } catch (error) {
-      console.error('Failed to parse session data:', error);
-      return null;
+    if (typeof data === 'object' && 'userId' in data && 'timestamp' in data) {
+      return data as SessionData;
     }
+    if (typeof data === 'string') {
+      try {
+        return JSON.parse(data) as SessionData;
+      } catch (error) {
+        console.error('Failed to parse session data:', error);
+        return null;
+      }
+    }
+    return null;
   }
 
   /**
