@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -33,6 +34,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const { login, isAuthenticated } = useAuth();
   const [error, setError] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // React Hook Form with Zod validation
@@ -48,8 +50,12 @@ function LoginForm() {
   const { register, handleSubmit, formState: { errors }, setValue, watch } = form;
   const rememberMe = watch('rememberMe');
 
-  // Handle error from URL params
+  // Handle error and success from URL params
   useEffect(() => {
+    const resetSuccess = searchParams.get('reset');
+    if (resetSuccess === 'success') {
+      setSuccessMessage('Password reset successfully. You can now log in.');
+    }
     const errorParam = searchParams.get('error');
     if (errorParam === 'session_expired') {
       setError('Your session has expired. Please login again.');
@@ -137,22 +143,37 @@ function LoginForm() {
             </div>
 
             {/* Remember Me Checkbox */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="rememberMe"
-                checked={rememberMe}
-                onCheckedChange={(checked) =>
-                  setValue('rememberMe', checked === true)
-                }
-                disabled={isSubmitting}
-              />
-              <Label
-                htmlFor="rememberMe"
-                className="text-sm font-normal cursor-pointer"
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) =>
+                    setValue('rememberMe', checked === true)
+                  }
+                  disabled={isSubmitting}
+                />
+                <Label
+                  htmlFor="rememberMe"
+                  className="text-sm font-normal cursor-pointer"
+                >
+                  Remember me
+                </Label>
+              </div>
+              <Link
+                href="/admin/forgot-password"
+                className="text-sm text-primary hover:underline"
               >
-                Remember me
-              </Label>
+                Forgot password?
+              </Link>
             </div>
+
+            {/* Success Message */}
+            {successMessage && (
+              <div className="p-3 rounded-md bg-green-50 border border-green-200">
+                <p className="text-sm text-green-800">{successMessage}</p>
+              </div>
+            )}
 
             {/* Error Message */}
             {error && (

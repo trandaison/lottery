@@ -62,8 +62,8 @@ export class EmailService {
         console.log('[EmailService] Using SendGrid for email delivery');
       }
     } else {
-      // Initialize Nodemailer for MailHog (local/dev/test)
-      const smtpHost = env.SMTP_HOST || 'localhost';
+      // Initialize Nodemailer for MailHog (local/dev/test). Use 127.0.0.1 so MailHog (IPv4) is reached; localhost can resolve to ::1 and fail.
+      const smtpHost = env.SMTP_HOST || '127.0.0.1';
       const smtpPort = parseInt(env.SMTP_PORT || '1025', 10);
       const smtpUser = env.SMTP_USER;
       const smtpPass = env.SMTP_PASS;
@@ -256,6 +256,54 @@ export class EmailService {
       lastError
     );
     return false;
+  }
+
+  /**
+   * Send password reset email with link.
+   *
+   * @param to - Recipient email
+   * @param resetUrl - Full URL to reset password page (with token)
+   * @returns true if sent successfully, false otherwise
+   */
+  async sendPasswordResetEmail(to: string, resetUrl: string): Promise<boolean> {
+    const subject = 'Reset your password';
+    const html = `
+      <p>You requested a password reset.</p>
+      <p>Click the link below to set a new password (link expires in 1 hour):</p>
+      <p><a href="${resetUrl}">${resetUrl}</a></p>
+      <p>If you did not request this, you can ignore this email.</p>
+    `.trim();
+
+    try {
+      if (this.useSendGrid) {
+        if (!env?.SENDGRID_API_KEY) {
+          console.error('[EmailService] Cannot send password reset: SENDGRID_API_KEY not configured');
+          return false;
+        }
+        const msg = {
+          to,
+          from: { email: this.fromEmail, name: this.fromName },
+          subject,
+          html,
+        };
+        return await this.sendWithRetry(() => sgMail.send(msg));
+      } else {
+        if (!this.transporter) {
+          console.error('[EmailService] Cannot send password reset: SMTP transporter not configured');
+          return false;
+        }
+        const mailOptions = {
+          from: `"${this.fromName}" <${this.fromEmail}>`,
+          to,
+          subject,
+          html,
+        };
+        return await this.sendWithRetry(() => this.transporter!.sendMail(mailOptions));
+      }
+    } catch (error) {
+      console.error('[EmailService] Error sending password reset email:', error);
+      return false;
+    }
   }
 
   /**

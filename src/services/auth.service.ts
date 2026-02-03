@@ -30,6 +30,10 @@ const SALT_ROUNDS = 10;
 const SESSION_PREFIX = 'session:';
 const SHORT_SESSION_TTL = 2 * 60 * 60; // 2 hours in seconds
 const LONG_SESSION_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
+const FORGOT_PASSWORD_PREFIX = 'forgot_password:';
+const FORGOT_PASSWORD_RATE_PREFIX = 'forgot_password_rate:';
+const FORGOT_PASSWORD_TTL = 3600; // 1 hour in seconds
+const FORGOT_PASSWORD_RATE_TTL = 60; // 1 minute in seconds
 
 /**
  * Authentication Service
@@ -272,6 +276,64 @@ export class AuthService {
   async sessionExists(tokenBase: string): Promise<boolean> {
     const session = await this.getSession(tokenBase);
     return session !== null;
+  }
+
+  /**
+   * Check forgot-password rate limit: 1 request per email per minute.
+   * Returns false if rate limited, true and sets key if allowed.
+   */
+  async checkForgotPasswordRateLimit(email: string): Promise<boolean> {
+    const normalized = email.toLowerCase().trim();
+    const key = `${FORGOT_PASSWORD_RATE_PREFIX}${normalized}`;
+    const existing = await redis.get(key);
+    if (existing != null) {
+      return false;
+    }
+    await redis.set(key, String(Date.now()), { ex: FORGOT_PASSWORD_RATE_TTL });
+    return true;
+  }
+
+  /**
+   * Create a forgot-password token for the given email.
+   * Returns token if user exists, active, and not rate limited; null otherwise.
+   */
+  async createForgotPasswordToken(email: string): Promise<string | null> {
+    const user = await this.findUserByEmail(email);
+    if (!user || user.status !== 'active') {
+      return null;
+    }
+    const allowed = await this.checkForgotPasswordRateLimit(email);
+    if (!allowed) {
+      return null;
+    }
+    const token = this.generateTokenBase();
+    const key = `${FORGOT_PASSWORD_PREFIX}${token}`;
+    await redis.set(key, String(user.id), { ex: FORGOT_PASSWORD_TTL });
+    return token;
+  }
+
+  /**
+   * Get user ID for a valid forgot-password token; null if invalid or expired.
+   */
+  async getForgotPasswordUserId(token: string): Promise<number | null> {
+    const key = `${FORGOT_PASSWORD_PREFIX}${token}`;
+    const value = await redis.get(key);
+    if (value == null) {
+      return null;
+    }
+    const userId = typeof value === 'string' ? parseInt(value, 10) : Number(value);
+    if (Number.isNaN(userId)) {
+      return null;
+    }
+    return userId;
+  }
+
+  /**
+   * Delete forgot-password token (one-time use after reset).
+   */
+  async deleteForgotPasswordToken(token: string): Promise<void> {
+    const key = `${FORGOT_PASSWORD_PREFIX}${token}`;
+    await redis.del(key);
   }
 }
 

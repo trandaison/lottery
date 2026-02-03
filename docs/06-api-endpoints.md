@@ -152,6 +152,120 @@ Get current authenticated user information.
 
 ---
 
+### POST /api/v1/admin/auth/forgot-password
+Request a password reset link by email. Always returns the same success message to avoid user enumeration.
+
+**Access**: Public
+
+**Request Body**:
+```json
+{
+  "email": "admin@company.com"
+}
+```
+
+**Implementation Flow**:
+1. Validate body (email required).
+2. Find user by email; if not found or inactive → still return 200 with generic message.
+3. Check rate limit: Redis key `forgot_password_rate:{normalized_email}`. If key exists (within 60s) → do not send email; still return 200 with same message.
+4. If allowed: generate token (UUID v4), store in Redis: key `forgot_password:{token}`, value `userId`, TTL 3600 (1 hour).
+5. Build reset URL: `{APP_URL or request origin}/admin/reset-password?token={token}`.
+6. Send password-reset email with link via EmailService.
+7. Return 200 with generic success message in all cases.
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "message": "If an account exists with this email, you will receive a reset link."
+  }
+}
+```
+
+**Behavior**: Same JSON response whether email exists, is rate limited, or email send fails. No user enumeration.
+
+---
+
+### GET /api/v1/admin/auth/reset-password/verify
+Verify a forgot-password token (used by reset page to show form or invalid message).
+
+**Access**: Public
+
+**Query Parameters**:
+- `token` (required): Forgot-password token from reset link.
+
+**Implementation Flow**:
+1. GET from Redis: `forgot_password:{token}`.
+2. If key exists and value is valid userId → return `{ valid: true, userId }`.
+3. Otherwise return `{ valid: false }`.
+
+**Response** (200 OK, valid token):
+```json
+{
+  "success": true,
+  "data": {
+    "valid": true,
+    "userId": 1
+  }
+}
+```
+
+**Response** (200 OK, invalid or expired token):
+```json
+{
+  "success": true,
+  "data": {
+    "valid": false
+  }
+}
+```
+
+---
+
+### POST /api/v1/admin/auth/reset-password
+Reset password using a valid forgot-password token. Token is deleted after success (one-time use).
+
+**Access**: Public
+
+**Request Body**:
+```json
+{
+  "token": "uuid-from-reset-link",
+  "password": "newPassword123"
+}
+```
+
+**Implementation Flow**:
+1. Validate body (token, password min 6 chars).
+2. GET from Redis: `forgot_password:{token}`. If not found → 400 Invalid or expired token.
+3. Update user password via UserService (hash and save).
+4. DELETE `forgot_password:{token}` from Redis.
+5. Return 200 success.
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Password reset successfully."
+  }
+}
+```
+
+**Response** (400 Bad Request, invalid/expired token):
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_TOKEN",
+    "message": "Invalid or expired token"
+  }
+}
+```
+
+---
+
 ## Campaign Endpoints
 
 ### GET /api/v1/admin/campaigns

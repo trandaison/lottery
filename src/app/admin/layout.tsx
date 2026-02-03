@@ -28,7 +28,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  if (pathname === '/admin/login') {
+  // Guest layout: no sidebar/header (login, forgot-password, reset-password)
+  if (
+    pathname === '/admin/login' ||
+    pathname === '/admin/forgot-password' ||
+    pathname === '/admin/reset-password'
+  ) {
     return <>{children}</>;
   }
 
