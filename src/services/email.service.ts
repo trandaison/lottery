@@ -238,7 +238,7 @@ export class EmailService {
         lastError = error instanceof Error ? error : new Error(String(error));
         console.error(
           `[EmailService] Attempt ${attempt} failed:`,
-          lastError.message
+          JSON.stringify(lastError, null, 2)
         );
 
         // If not the last attempt, wait before retrying
@@ -253,7 +253,7 @@ export class EmailService {
     // All attempts failed
     console.error(
       `[EmailService] Failed to send email after ${this.maxRetries} attempts:`,
-      lastError
+      JSON.stringify(lastError, null, 2)
     );
     return false;
   }
