@@ -8,6 +8,7 @@ import { PrizeTable } from '@/components/campaign/PrizeTable';
 import { CountdownTimer } from '@/components/campaign/CountdownTimer';
 import { PurchaseForm } from '@/components/campaign/PurchaseForm';
 import { PurchaseFormPlaceholder } from '@/components/campaign/PurchaseFormPlaceholder';
+import { CampaignStatementSection } from '@/components/campaign/CampaignStatementSection';
 import dayjs from 'dayjs';
 import 'dayjs/locale/vi';
 
@@ -123,6 +124,8 @@ export default async function CampaignPage({ params }: CampaignPageProps) {
                 totalRevenue={stats.totalRevenue}
                 prizeValueType={campaign.prizeValueType}
               />
+
+              <CampaignStatementSection campaignSlug={campaign.slug} />
             </div>
 
             {/* Right Column: Purchase Form or Message */}

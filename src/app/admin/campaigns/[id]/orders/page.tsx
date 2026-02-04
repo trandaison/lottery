@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, Info, Loader2 } from 'lucide-react';
+import { ChevronLeft, Info, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -248,7 +248,7 @@ export default function CampaignOrdersPage() {
             <ChevronLeft className="size-4" />
           </Link>
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight">Orders</h1>
           <p className="text-muted-foreground">
             Campaign ID: {campaignId} · {total} đơn hàng
@@ -256,52 +256,67 @@ export default function CampaignOrdersPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
-        <Input
-          placeholder="Tìm mã đơn (paymentReferenceId)..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="max-w-[260px]"
-          aria-label="Tìm mã đơn"
-        />
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => {
-            setStatusFilter(v);
-            setPage(1);
-          }}
-          aria-label="Filter by status"
+      <div className="flex flex-wrap justify-between items-center gap-4">
+        <div className="flex flex-1 flex-wrap items-center gap-4">
+          <Input
+            placeholder="Tìm mã đơn (paymentReferenceId)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="max-w-[260px]"
+            aria-label="Tìm mã đơn"
+          />
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              setStatusFilter(v);
+              setPage(1);
+            }}
+            aria-label="Filter by status"
+          >
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="success">Success</SelectItem>
+              <SelectItem value="failed">Failed</SelectItem>
+            </SelectContent>
+          </Select>
+          {someSelected && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmBulk('updateStatus')}
+                disabled={bulkLoading}
+              >
+                Cập nhật trạng thái ({selectedIds.size})
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setConfirmBulk('delete')}
+                disabled={bulkLoading}
+              >
+                Xóa đã chọn
+              </Button>
+            </>
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => fetchOrders()}
+          disabled={loading}
+          aria-label="Làm mới danh sách"
         >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All status</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="success">Success</SelectItem>
-            <SelectItem value="failed">Failed</SelectItem>
-          </SelectContent>
-        </Select>
-        {someSelected && (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setConfirmBulk('updateStatus')}
-              disabled={bulkLoading}
-            >
-              Cập nhật trạng thái ({selectedIds.size})
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setConfirmBulk('delete')}
-              disabled={bulkLoading}
-            >
-              Xóa đã chọn
-            </Button>
-          </>
-        )}
+          {loading ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <RefreshCw className="size-4" />
+          )}
+        </Button>
       </div>
 
       {loading ? (
